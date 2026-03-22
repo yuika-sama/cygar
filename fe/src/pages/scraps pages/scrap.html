@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>The Living Lens - AI Recycling Guide</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@200;400;600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "inverse-surface": "#2e3132",
+                        "on-tertiary": "#ffffff",
+                        "on-tertiary-container": "#f1f1f1",
+                        "secondary-container": "#fed0c1",
+                        "on-background": "#191c1d",
+                        "on-surface-variant": "#40493d",
+                        "on-secondary": "#ffffff",
+                        "on-secondary-container": "#79574c",
+                        "on-error": "#ffffff",
+                        "tertiary-fixed": "#e2e2e2",
+                        "tertiary-fixed-dim": "#c6c6c7",
+                        "primary-fixed-dim": "#88d982",
+                        "outline-variant": "#bfcaba",
+                        "surface-container-lowest": "#ffffff",
+                        "surface-container": "#edeeef",
+                        "on-error-container": "#93000a",
+                        "secondary": "#79564b",
+                        "secondary-fixed-dim": "#e9bdae",
+                        "on-surface": "#191c1d",
+                        "surface-dim": "#d9dadb",
+                        "surface-bright": "#f8f9fa",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#454747",
+                        "secondary-fixed": "#ffdbcf",
+                        "surface-tint": "#1b6d24",
+                        "outline": "#707a6c",
+                        "surface-container-high": "#e7e8e9",
+                        "tertiary": "#545656",
+                        "on-primary-fixed": "#002204",
+                        "surface-variant": "#e1e3e4",
+                        "on-primary": "#ffffff",
+                        "primary": "#0d631b",
+                        "inverse-on-surface": "#f0f1f2",
+                        "surface-container-highest": "#e1e3e4",
+                        "background": "#f8f9fa",
+                        "surface-container-low": "#f3f4f5",
+                        "primary-container": "#2e7d32",
+                        "inverse-primary": "#88d982",
+                        "error-container": "#ffdad6",
+                        "on-secondary-fixed": "#2d150d",
+                        "on-primary-container": "#cbffc2",
+                        "primary-fixed": "#a3f69c",
+                        "on-secondary-fixed-variant": "#5e3f35",
+                        "surface": "#f8f9fa",
+                        "on-tertiary-fixed": "#1a1c1c",
+                        "tertiary-container": "#6c6e6e",
+                        "on-primary-fixed-variant": "#005312"
+                    },
+                    fontFamily: {
+                        "headline": ["Manrope"],
+                        "body": ["Inter"],
+                        "label": ["Inter"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "2xl": "1.5rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+    <style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            vertical-align: middle;
+        }
+        .primary-gradient {
+            background: linear-gradient(135deg, #0d631b 0%, #2e7d32 100%);
+        }
+        .canvas-gradient {
+            background: radial-gradient(circle at center, #f8f9fa 0%, #edeeef 100%);
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .corner-bracket {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(112, 122, 108, 0.4);
+        }
+    </style>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/history@5/umd/history.development.js"></script>
+    <script src="https://unpkg.com/react-router@6.3.0/umd/react-router.development.js"></script>
+    <script src="https://unpkg.com/react-router-dom@6.3.0/umd/react-router-dom.development.js"></script>
+    <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+</head>
+<body class="bg-surface font-body text-on-surface antialiased">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const { createRoot } = ReactDOM;
+        const { MemoryRouter, Routes, Route, Link, useNavigate, useLocation } = ReactRouterDOM;
+
+        // --- Components ---
+
+        const TopBar = () => {
+            return (
+                <header className="fixed top-0 w-full z-40 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl flex justify-between items-center px-6 py-3 border-b border-zinc-100 dark:border-zinc-800 shadow-sm shadow-zinc-200/50 dark:shadow-none font-manrope antialiased tracking-tight">
+                    <div className="flex items-center gap-4 md:gap-8">
+                        <Link to="/" className="text-2xl font-black tracking-tighter text-green-800 dark:text-green-300">The Living Lens</Link>
+                        <div className="hidden md:flex items-center bg-zinc-100/50 dark:bg-zinc-800/50 px-4 py-1.5 rounded-full items-center gap-2 w-64 md:w-80">
+                            <span className="material-symbols-outlined text-zinc-400 text-sm">search</span>
+                            <input className="bg-transparent border-none text-sm focus:ring-0 w-full" placeholder="Search..." type="text" />
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 md:gap-4">
+                        <button className="p-2 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-full transition-colors active:scale-95 hidden sm:block">
+                            <span className="material-symbols-outlined">notifications</span>
+                        </button>
+                        <button className="p-2 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-full transition-colors active:scale-95 hidden sm:block">
+                            <span className="material-symbols-outlined">history</span>
+                        </button>
+                        <button className="p-2 text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-800 rounded-full transition-colors active:scale-95 hidden sm:block">
+                            <span className="material-symbols-outlined">emoji_events</span>
+                        </button>
+                        <div className="h-8 w-8 rounded-full overflow-hidden border-2 border-green-500 ml-2">
+                            <img className="w-full h-full object-cover" data-alt="User avatar with green border" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCtDlfOkTvg8nrM6mvQcnfxqKAjMrqU7iJvE-tsgbR9fDyLdRl-LHPalMmX6u0ocmta8twfQpdWIwHespnH6K485LM7c_zW6oroIyHZSE7i0w85WVfFkRyMvuv-G0jXAQ8CSrf98PH71lpbuB6iN4Vw-nVId3M9nnEwhdWOs3MNCKgucQegpm_usAvvEHRWI2vm3PdV_TA1gZdc-P9bvJA-ncuvwfEBfuUrNESRErU4ofK5MfE4ucQ9GB4xqQ_rNwMo-eqmyakE3g" />
+                        </div>
+                    </div>
+                </header>
+            );
+        };
+
+        const SideNav = () => {
+            const location = useLocation();
+            
+            const navItems = [
+                { path: '/', icon: 'dashboard', label: 'Dashboard' },
+                { path: '/recognize', icon: 'center_focus_strong', label: 'Recognize' },
+                { path: '/crafting', icon: 'palette', label: 'Crafting 3D' },
+                { path: '/session-detail', icon: 'auto_awesome', label: 'Session Detail' },
+                { path: '/history', icon: 'receipt_long', label: 'History' },
+            ];
+
+            return (
+                <aside className="fixed left-0 top-0 h-screen w-64 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 flex flex-col pt-20 pb-6 hidden md:flex z-30">
+                    <div className="px-6 mb-8">
+                        <div className="flex items-center gap-3 p-3 bg-white dark:bg-zinc-900 rounded-xl shadow-sm">
+                            <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                                <span className="material-symbols-outlined text-green-700">eco</span>
+                            </div>
+                            <div>
+                                <p className="text-on-surface font-bold leading-tight font-headline text-sm">Eco-profile lens</p>
+                                <p className="text-[10px] text-zinc-500 uppercase tracking-widest">AI Recycling Guide</p>
+                            </div>
+                        </div>
+                    </div>
+                    <nav className="flex-1 space-y-2 px-4">
+                        {navItems.map((item) => {
+                            const isActive = location.pathname === item.path;
+                            return (
+                                <Link key={item.path} to={item.path} className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all font-manrope text-sm font-semibold active:scale-[0.98] ${isActive ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300' : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50'}`}>
+                                    <span className="material-symbols-outlined" style={isActive ? { fontVariationSettings: "'FILL' 1" } : {}}>{item.icon}</span>
+                                    <span>{item.label}</span>
+                                </Link>
+                            )
+                        })}
+                    </nav>
+                    <div className="px-6 mt-4">
+                        <Link to="/new-session" className="w-full primary-gradient text-white py-3 rounded-full font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-green-900/20 active:scale-95 transition-transform block text-center">
+                            <span className="material-symbols-outlined text-lg">add_a_photo</span>
+                            New Scan
+                        </Link>
+                    </div>
+                    <div className="mt-auto px-4 space-y-1 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                        <a className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400 px-4 py-3 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 rounded-xl text-sm font-semibold transition-all" href="#">
+                            <span className="material-symbols-outlined">settings</span>
+                            <span>Settings</span>
+                        </a>
+                        <a className="flex items-center gap-3 text-zinc-600 dark:text-zinc-400 px-4 py-3 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 rounded-xl text-sm font-semibold transition-all" href="#">
+                            <span className="material-symbols-outlined">help_outline</span>
+                            <span>Support</span>
+                        </a>
+                    </div>
+                </aside>
+            );
+        };
+
+        const MobileBottomNav = () => (
+            <div className="md:hidden fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-xl border-t border-zinc-100 px-6 py-4 flex justify-between items-center z-50">
+                <Link to="/" className="flex flex-col items-center gap-1 text-zinc-400">
+                    <span className="material-symbols-outlined">dashboard</span>
+                    <span className="text-[10px] font-bold uppercase">Home</span>
+                </Link>
+                <Link to="/recognize" className="flex flex-col items-center gap-1 text-green-700">
+                    <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>center_focus_strong</span>
+                    <span className="text-[10px] font-bold uppercase">Scan</span>
+                </Link>
+                <div className="relative -top-6">
+                    <Link to="/new-session" className="bg-primary text-white p-4 rounded-full shadow-lg shadow-primary/30 flex items-center justify-center">
+                        <span className="material-symbols-outlined">add</span>
+                    </Link>
+                </div>
+                <Link to="/history" className="flex flex-col items-center gap-1 text-zinc-400">
+                    <span className="material-symbols-outlined">receipt_long</span>
+                    <span className="text-[10px] font-bold uppercase">History</span>
+                </Link>
+                <a href="#" className="flex flex-col items-center gap-1 text-zinc-400">
+                    <span className="material-symbols-outlined">settings</span>
+                    <span className="text-[10px] font-bold uppercase">Settings</span>
+                </a>
+            </div>
+        );
+
+        const Footer = () => (
+            <footer className="w-full border-t border-zinc-100 dark:border-zinc-800 bg-white dark:bg-zinc-900 flex flex-col md:flex-row justify-between items-center px-8 py-12 md:ml-64 font-inter text-xs text-zinc-500 dark:text-zinc-400">
+                <div className="mb-6 md:mb-0 text-center md:text-left">
+                    <span className="font-manrope font-bold text-zinc-900 dark:text-zinc-100">The Living Lens</span>
+                    <p className="mt-1">© 2024 The Living Lens. Organic AI Precision.</p>
+                </div>
+                <div className="flex gap-8">
+                    <a className="text-zinc-400 hover:text-green-600 transition-colors" href="#">Privacy Policy</a>
+                    <a className="text-zinc-400 hover:text-green-600 transition-colors" href="#">Terms of Service</a>
+                    <a className="text-zinc-400 hover:text-green-600 transition-colors" href="#">Carbon Report</a>
+                </div>
+            </footer>
+        );
+
+        // --- Screens ---
+
+        const Dashboard = () => {
+            return (
+                <main className="md:ml-64 pt-24 px-6 pb-24 md:pb-12 min-h-screen">
+                    <div className="max-w-6xl mx-auto">
+                        <section className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                            <div>
+                                <h1 className="text-4xl font-black font-headline tracking-tighter text-on-surface mb-2">Welcome Back, Julian.</h1>
+                                <p className="text-zinc-500 font-medium">Your organic AI guide has identified 12 items today.</p>
+                            </div>
+                            <div className="flex gap-3">
+                                <span className="bg-primary-fixed text-on-primary-fixed px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm" style={{fontVariationSettings: "'FILL' 1"}}>eco</span>
+                                    Level 14 Curator
+                                </span>
+                                <span className="bg-secondary-fixed text-on-secondary-fixed px-4 py-2 rounded-full text-sm font-bold flex items-center gap-2">
+                                    <span className="material-symbols-outlined text-sm" style={{fontVariationSettings: "'FILL' 1"}}>bolt</span>
+                                    2.4k Points
+                                </span>
+                            </div>
+                        </section>
+
+                        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+                            <div className="md:col-span-4 flex flex-col gap-4">
+                                <Link to="/history" className="group cursor-pointer bg-surface-container-low p-6 rounded-2xl hover:bg-surface-container-high transition-all active:scale-[0.98]">
+                                    <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center text-primary mb-4 shadow-sm group-hover:scale-110 transition-transform">
+                                        <span className="material-symbols-outlined text-3xl">history</span>
+                                    </div>
+                                    <h3 className="text-xl font-bold font-headline mb-1">Scan History</h3>
+                                    <p className="text-sm text-zinc-500">Review your past 142 identifications</p>
+                                </Link>
+                                <Link to="/new-session" className="group cursor-pointer primary-gradient p-6 rounded-2xl text-white shadow-xl shadow-green-900/10 hover:brightness-110 transition-all active:scale-[0.98]">
+                                    <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur-md flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                        <span className="material-symbols-outlined text-3xl">center_focus_strong</span>
+                                    </div>
+                                    <h3 className="text-xl font-bold font-headline mb-1">New Scan</h3>
+                                    <p className="text-sm text-white/80">Activate the Lens for real-time AI guidance</p>
+                                </Link>
+                            </div>
+
+                            <div className="md:col-span-8 bg-surface-container-low rounded-2xl p-8 relative overflow-hidden">
+                                <div className="flex items-center justify-between mb-8">
+                                    <div>
+                                        <h3 className="text-xl font-bold font-headline">Weekly Recycling Impact</h3>
+                                        <p className="text-sm text-zinc-500">CO2 equivalents saved this week</p>
+                                    </div>
+                                    <select className="bg-white border-none text-xs font-bold rounded-lg px-3 py-1.5 shadow-sm focus:ring-0 outline-none cursor-pointer">
+                                        <option>Last 7 Days</option>
+                                        <option>Last 30 Days</option>
+                                    </select>
+                                </div>
+                                <div className="flex items-end gap-3 h-48 mb-6">
+                                    <div className="flex-1 bg-zinc-200/50 rounded-t-lg h-[40%] group relative hover:bg-zinc-300/50 transition-colors"></div>
+                                    <div className="flex-1 bg-zinc-200/50 rounded-t-lg h-[65%] group relative hover:bg-zinc-300/50 transition-colors"></div>
+                                    <div className="flex-1 primary-gradient rounded-t-lg h-[85%] group relative shadow-lg shadow-green-900/20">
+                                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-on-surface text-white text-[10px] px-2 py-1 rounded opacity-100 transition-opacity">2.8kg</div>
+                                    </div>
+                                    <div className="flex-1 bg-zinc-200/50 rounded-t-lg h-[45%] group relative hover:bg-zinc-300/50 transition-colors"></div>
+                                    <div className="flex-1 bg-zinc-200/50 rounded-t-lg h-[30%] group relative hover:bg-zinc-300/50 transition-colors"></div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-4 border-t border-zinc-200/50 pt-6">
+                                    <div className="text-center">
+                                        <p className="text-2xl font-black text-primary">12.4kg</p>
+                                        <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 mt-1">Plastic Diverted</p>
+                                    </div>
+                                    <div className="text-center border-x border-zinc-200/50">
+                                        <p className="text-2xl font-black text-secondary">8.1kg</p>
+                                        <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 mt-1">Paper Recycled</p>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-2xl font-black text-tertiary">34L</p>
+                                        <p className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 mt-1">Water Saved</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-12 lg:col-span-7 bg-white p-8 rounded-2xl shadow-sm border border-zinc-100">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="text-xl font-bold font-headline">Recent Activity</h3>
+                                    <Link to="/history" className="text-sm font-bold text-primary hover:underline">View All</Link>
+                                </div>
+                                <div className="space-y-6">
+                                    <Link to="/session-detail" className="flex items-center gap-4 group cursor-pointer">
+                                        <div className="w-14 h-14 rounded-xl overflow-hidden bg-surface-container flex-shrink-0">
+                                            <img className="w-full h-full object-cover group-hover:scale-110 transition-transform" data-alt="Crushed plastic water bottle on scanner" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBxi2ARavcWswEb41OZDneajxdftI-unST83Fwu4fWoPRxlUcoNtLOKAWuQjDKfobWf-JdIRsIjL9-1pCBSnJVbe7oWix8r3K9lGNiE2V3ygLEeJdDoKdNAoLpxcvnq_Y9rQv5ID6cop3CX8CvkWz2Iqne3KGkJIbd7NFaUArWsdTeKA-s96R2EGqeok0I4_GwbI0IrFMayvx7BiBNsKOXmIdCwN6um8XWylGvlHdAQUSOqm_LjYlgNpITptLIIxD5q9q-nuQwqvA" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-bold text-on-surface group-hover:text-primary transition-colors">PET Bottle identified</p>
+                                            <p className="text-xs text-zinc-400 mt-0.5">High-grade recyclable • 14 mins ago</p>
+                                        </div>
+                                        <div className="bg-green-50 text-green-700 px-3 py-1 rounded-full text-[10px] font-black">+45 PTS</div>
+                                    </Link>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            );
+        };
+
+        const NewSession = () => {
+            const navigate = useNavigate();
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                navigate('/recognize');
+            };
+
+            return (
+                <main className="md:ml-64 pt-20 min-h-screen bg-surface flex items-center justify-center p-6 md:p-12 relative overflow-hidden">
+                    <div className="absolute top-[-10%] right-[-5%] w-96 h-96 bg-primary-fixed opacity-20 rounded-full blur-3xl pointer-events-none"></div>
+                    <div className="max-w-4xl w-full grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10 pb-20 md:pb-0">
+                        <div className="lg:col-span-5 space-y-6">
+                            <span className="px-4 py-1.5 bg-primary-container text-on-primary-container rounded-full text-xs font-bold uppercase tracking-widest font-label inline-block">New Session</span>
+                            <h1 className="text-5xl md:text-6xl font-headline font-extrabold text-on-surface leading-[1.1] tracking-tighter">
+                                Initiate <span className="text-primary italic">Precision</span> Scan.
+                            </h1>
+                            <p className="text-lg text-on-surface-variant leading-relaxed opacity-80 max-w-sm">
+                                Configure your session metadata. The Living Lens uses advanced neural networks to identify materials with 99.4% accuracy.
+                            </p>
+                        </div>
+                        <div className="lg:col-span-7">
+                            <div className="bg-white p-8 md:p-12 rounded-3xl shadow-sm border border-zinc-100 relative overflow-hidden group">
+                                <form onSubmit={handleSubmit} className="relative z-10 space-y-8">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-label font-semibold text-on-surface ml-1">Session Title</label>
+                                        <div className="bg-surface-container-low rounded-xl p-1 group-focus-within:ring-2 ring-primary/20 transition-all border border-zinc-200">
+                                            <input className="w-full bg-transparent border-none focus:ring-0 py-3 px-4 text-on-surface placeholder:text-zinc-400 font-medium outline-none" placeholder="e.g., Sunday Park Cleanup" type="text" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-label font-semibold text-on-surface ml-1">Notes (Optional)</label>
+                                        <div className="bg-surface-container-low rounded-xl p-1 group-focus-within:ring-2 ring-primary/20 transition-all border border-zinc-200">
+                                            <textarea className="w-full bg-transparent border-none focus:ring-0 py-3 px-4 text-on-surface placeholder:text-zinc-400 font-medium resize-none outline-none" placeholder="Briefly describe the context..." rows="3"></textarea>
+                                        </div>
+                                    </div>
+                                    <div className="pt-4">
+                                        <button className="w-full py-4 px-8 rounded-full primary-gradient text-white font-headline font-bold text-lg shadow-xl shadow-green-900/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-all hover:brightness-110" type="submit">
+                                            <span className="material-symbols-outlined" style={{fontVariationSettings: "'FILL' 1"}}>center_focus_strong</span>
+                                            Start Recognition
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            );
+        };
+
+        const Recognize = () => {
+            return (
+                 <main className="ml-0 md:ml-64 pt-24 px-6 md:px-8 pb-24 md:pb-12 min-h-screen">
+                    <div className="max-w-6xl mx-auto mb-10">
+                        <h2 className="text-4xl font-headline font-extrabold text-on-surface tracking-tight mb-2">Waste Recognition</h2>
+                        <p className="text-lg text-tertiary-container max-w-lg">Point your camera to identify materials and discover creative upcycling potential.</p>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                        <div className="lg:col-span-7 space-y-6">
+                            <div className="relative aspect-[4/3] md:aspect-video w-full rounded-3xl overflow-hidden bg-zinc-900 shadow-lg border border-zinc-200/50">
+                                <div className="absolute inset-0 z-0">
+                                    <img className="w-full h-full object-cover grayscale-[10%] brightness-90" data-alt="Close up of various recyclable materials" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnDN_MRlASRP5ITJiU15-G7IZyCctz9IUsVrV4z8wtjy4NbISX2FoCc8CceoPS9bywXeCVOYXyz2UC94qedodCPfIrsrv7aJ5SF-oqfV2abS5X4VyTCPBMmNO2tuFaBVPK8llCyy0MaAkTuLbLoa1OuHUGRnYh12G9YE0GX7Qz5oOtrS5qnlj4pkg_kuNH6ZMtEWrPXj49kaSki2SZYYpDlH4TmdMFacBHJK3BqAV20ZN2aUYICv38QW9QvkE80U6zp8xa6QjNrw" />
+                                </div>
+                                <div className="absolute inset-0 pointer-events-none z-10 flex items-center justify-center">
+                                    <div className="relative w-[70%] h-[70%]">
+                                        <div className="corner-bracket top-0 left-0 border-t-4 border-l-4 rounded-tl-xl border-white/70"></div>
+                                        <div className="corner-bracket top-0 right-0 border-t-4 border-r-4 rounded-tr-xl border-white/70"></div>
+                                        <div className="corner-bracket bottom-0 left-0 border-b-4 border-l-4 rounded-bl-xl border-white/70"></div>
+                                        <div className="corner-bracket bottom-0 right-0 border-b-4 border-r-4 rounded-br-xl border-white/70"></div>
+                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white/20 backdrop-blur-md px-4 py-2 rounded-full flex items-center gap-2 border border-white/40">
+                                            <span className="material-symbols-outlined text-white text-sm animate-spin">sync</span>
+                                            <span className="text-xs font-bold uppercase tracking-wider text-white">Scanning</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-6">
+                                    <button className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/30 hover:bg-black/60 transition-all">
+                                        <span className="material-symbols-outlined">image</span>
+                                    </button>
+                                    <Link to="/session-detail" className="w-16 h-16 rounded-full bg-white border-4 border-white/50 p-1 shadow-2xl active:scale-95 transition-all flex items-center justify-center">
+                                        <div className="w-full h-full rounded-full bg-primary flex items-center justify-center">
+                                             <span className="material-symbols-outlined text-white">camera</span>
+                                        </div>
+                                    </Link>
+                                    <button className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white border border-white/30 hover:bg-black/60 transition-all">
+                                        <span className="material-symbols-outlined">flip_camera_ios</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="lg:col-span-5 space-y-8">
+                            <section className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
+                                <div className="flex items-center justify-between mb-6">
+                                    <h3 className="font-headline font-bold text-xl flex items-center gap-2">
+                                        <span className="material-symbols-outlined text-primary">analytics</span>
+                                        Live Detection
+                                    </h3>
+                                    <span className="text-xs font-bold text-primary px-3 py-1 bg-primary-container/10 rounded-full">2 Items</span>
+                                </div>
+                                <div className="space-y-3">
+                                    <div className="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border-l-4 border-primary">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-white rounded-xl overflow-hidden shadow-sm">
+                                                <img className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAEbReQSyFFm7FHJACSDVbolitARGx8v10UiOP_CqU5iwYtSOnsEbQA3m-nvlLor43-KBPkuNEol_NGCbM84jj89dAkYN-1Ng61L29vXZpAYsmA0fAy5czUY2g0APvrpZwzJYJhOf8yZju2DfcajSMrcVF1IGBuy8vZoPqCJKH8BSHHpFfB82cvfPnFexpO6mWhhnBizM4B2PduosGjOPEd04mCJlXmNDpEOo4bQBcrX95wG1isajEXpeabz1ncCDPH4PWbRRWUvA" />
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-on-surface">Plastic Bottle</div>
+                                                <div className="text-xs text-zinc-500">Type 01 PET</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-bold text-primary">98%</div>
+                                        </div>
+                                    </div>
+                                    <div className="bg-surface-container-low p-4 rounded-2xl flex items-center justify-between border-l-4 border-zinc-300">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-white rounded-xl overflow-hidden shadow-sm flex items-center justify-center">
+                                                 <span className="material-symbols-outlined text-zinc-400">qr_code_scanner</span>
+                                            </div>
+                                            <div>
+                                                <div className="font-bold text-on-surface">Scanning...</div>
+                                                <div className="text-xs text-zinc-500">Awaiting lock</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </section>
+                             <section>
+                                <h3 className="font-headline font-bold text-xl flex items-center gap-2 mb-4 px-2">
+                                    <span className="material-symbols-outlined text-secondary">tips_and_updates</span>
+                                    Ideas
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Link to="/crafting" className="group cursor-pointer block">
+                                        <div className="relative h-32 rounded-2xl overflow-hidden mb-3">
+                                            <img className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAb0xXRKUctLC8FHpScEzTYFQoxfGAZrfhMWLloAiHI_gs7FbLfRqlJ6053j0moYq01hFuD3kbSF6A-XistqvCoLvBA5m-O_ypHgXzp8cipAGdMzoO4oyH9zLtiZS5KVjzR4Vm8nTStT95ErFypoTa9xS4r9UrUhSvRxZNf-vEEhCKnB7JjPIMC1dZ3DBUCrez5ua8c_emHq7ewxEoiVq4gNUmdcEyClfCHOOsH7mWt0IwecObTsmD85z4eoElRpDuAILp4b43yBw" />
+                                            <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                                        </div>
+                                        <h4 className="font-bold text-sm text-on-surface leading-tight px-1 group-hover:text-primary transition-colors">DIY Planter</h4>
+                                    </Link>
+                                    <Link to="/crafting" className="group cursor-pointer block">
+                                        <div className="relative h-32 rounded-2xl overflow-hidden mb-3">
+                                            <img className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCawiM1XcEUgEra55wYj9-NqB-Vcur3rjhcXWJ52Gpz2YaucVhaMphuDzjEvm_bM5qFmZzOzsRHwG6lwsyPiLzFb97Biwj3UqFztgQAP-iETvvyv10heHCO2k7FseSl0f4sQLN8TiGHEYJaEeWstJnyRTbFFd_zYpRQl5HphMY5MN2V62gQnT7xKoWVDyuY2FFCIvKkQohRigfqgQw-vEx685HEJwtfoCIJnMyN9eW8wuZXkMbN99xGOQI9khGoZJ8l6pSqtfIFBA" />
+                                            <div className="absolute inset-0 bg-black/10 group-hover:bg-transparent transition-colors"></div>
+                                        </div>
+                                        <h4 className="font-bold text-sm text-on-surface leading-tight px-1 group-hover:text-primary transition-colors">Organizer</h4>
+                                    </Link>
+                                </div>
+                            </section>
+                        </div>
+                    </div>
+                </main>
+            );
+        };
+
+        const SessionDetail = () => {
+             return (
+                <main className="md:ml-64 pt-24 pb-24 md:pb-12 px-6 md:px-8 bg-surface min-h-screen">
+                    <div className="max-w-6xl mx-auto mb-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+                        <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-primary font-bold text-xs tracking-widest uppercase mb-2">
+                                <span className="material-symbols-outlined text-base">verified</span>
+                                <span>Session #8824</span>
+                            </div>
+                            <h1 className="text-4xl md:text-5xl font-headline font-extrabold tracking-tighter text-on-surface leading-tight">
+                                Single-Use <span className="text-primary italic">Transformation</span>
+                            </h1>
+                        </div>
+                        <div className="flex gap-3">
+                            <Link to="/crafting" className="px-6 py-3 bg-primary text-white rounded-full font-headline font-bold text-sm shadow-lg shadow-primary/20 transition-all active:scale-95">
+                                Start Crafting
+                            </Link>
+                        </div>
+                    </div>
+
+                    <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-12 gap-8">
+                        <div className="md:col-span-7 bg-surface-container-lowest rounded-3xl overflow-hidden relative min-h-[400px] border border-zinc-100 shadow-sm">
+                            <img className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCqXfpSZEDnur81FaANqPk8Jfjql8uD23OaTV2FBYDiumhaAGInbnQ40sXHU-LSduOOD2UzMMRZvcoZKOszIBUAwGSowZBaZyBzoHFfsetYrfL-AtBNDQFxp_h_lpMVlanc0xe4jtqpQxtu0TX78IZ7SGKMh7XUlzTBms9qOUK8M09YzH7lZg3x8OrxhAwJYIA1QVmkBHIks7msmCg5Y7hFaQ6mup-s8V_jUfF2QSX8DaZ0j0bSQqEwI4YpzzenkQQiuAALYYSc3A" />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                            <div className="absolute bottom-6 left-6 right-6 bg-white/20 backdrop-blur-md p-5 rounded-2xl border border-white/30 flex justify-between items-center">
+                                <div>
+                                    <p className="text-white/80 text-[10px] font-bold uppercase tracking-widest mb-1">Detected Material</p>
+                                    <h3 className="text-white text-xl font-headline font-bold">Clear Silica Glass</h3>
+                                </div>
+                                <div className="bg-primary/90 backdrop-blur px-3 py-1.5 rounded-full text-white text-xs font-bold">
+                                  98.2% Match
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="md:col-span-5 flex flex-col gap-6">
+                            <div className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500 mb-4">Properties</h4>
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between p-3 bg-surface rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-primary">eco</span>
+                                            <span className="font-bold text-sm text-on-surface">Recyclable</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between p-3 bg-surface rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <span className="material-symbols-outlined text-secondary">local_drink</span>
+                                            <span className="font-bold text-sm text-on-surface">Glass Bottle</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="bg-primary-container/10 p-6 rounded-3xl border border-primary/20">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-primary-container mb-4">Recommended Project</h4>
+                                <div className="flex gap-4 items-center bg-white p-3 rounded-2xl">
+                                    <div className="w-16 h-16 rounded-xl bg-zinc-100 overflow-hidden flex-shrink-0">
+                                        <img className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuArI0y5Vjawa5aU4eYhJWP2WL0juCitP3TjWqSjY_FKZNugk-cj-mbpIqkNc1YdAAXtfvWGmF9GwgUfGo6axHXUJUwCbdmVkHdbFdicis2meSh8cUrgfD3rY_MEz02XtI0ls5z2GoMcFupzg8vUfT7eTvBKs2LbKrTQgtEimrJ8xHeyXXup2rO3GcPTLjyxR5caEONGQknhH1Y0g91EAA6jwWzpXVsQNINLtGoodHLwbLlBClIykNqlZJk_OG38vx4OD-JO-6wQug" />
+                                    </div>
+                                    <div>
+                                        <h5 className="font-headline font-bold text-sm text-on-surface leading-tight mb-1">Self-Watering Garden</h5>
+                                        <p className="text-zinc-500 text-xs">45 mins • Intermediate</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            );
+        };
+
+        const Crafting3D = () => {
+             return (
+                <main className="ml-0 md:ml-64 pt-16 min-h-screen relative overflow-hidden flex flex-col pb-20 md:pb-0">
+                    <section className="flex-1 relative canvas-gradient flex items-center justify-center p-4 md:p-8 min-h-[512px]">
+                        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                            <div className="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
+                        </div>
+                        <div className="relative z-10 w-full max-w-lg aspect-square flex items-center justify-center">
+                            <div className="absolute inset-0 bg-white/20 backdrop-blur-sm rounded-full scale-75 border border-white/40 shadow-inner"></div>
+                            <img className="w-full h-full object-contain drop-shadow-2xl z-10 relative cursor-grab" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAALduvGhQaDh4LPW350-0GOT5wfr7NkzdEYqN4eRSqgIjv5Pd5IOVcv3iU0Ftz7rRtFfbhnSaV1yaTfffCzSqLAtzkBOwks88akotnCTqSTXBaM0oXNeHqarvAi00NeYuvVfBFLkiMTLq_4o9ZSfe7PE20suyYKT9Z0FGFwMmCVTdyvxJX2s5zernYWyVRpKcxPAPywngjSrEq6lH_F34VnEUdqYloG-hzljvO64gteADAYKVWrYbNnKS_FfB8ipTW9Wr5SiqlVw" />
+                            <div className="absolute bottom-0 flex items-center gap-2 bg-black/5 backdrop-blur-md px-4 py-1.5 rounded-full text-[10px] text-on-surface font-bold tracking-widest uppercase border border-white/50">
+                                <span className="material-symbols-outlined text-sm">3d_rotation</span>
+                                Interactive Model
+                            </div>
+                        </div>
+                        <div className="absolute top-8 right-8 z-20 hidden md:block">
+                            <button className="flex items-center gap-2 bg-white text-primary px-5 py-2.5 rounded-full shadow-lg font-bold text-sm hover:scale-105 transition-all">
+                                <span className="material-symbols-outlined">view_in_ar</span> AR View
+                            </button>
+                        </div>
+                    </section>
+
+                    <section className="p-6 md:p-8 bg-white border-t border-zinc-100 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] z-20">
+                        <div className="max-w-5xl mx-auto flex flex-col md:flex-row justify-between items-start gap-8">
+                            <div className="max-w-md">
+                                <span className="bg-primary-fixed text-on-primary-fixed px-3 py-1 rounded-full text-[10px] font-bold mb-3 inline-block uppercase tracking-wider">Recycled PET</span>
+                                <h1 className="font-headline text-3xl md:text-4xl font-extrabold text-on-surface tracking-tight mb-2">Bottle Bloom Lamp</h1>
+                                <p className="font-body text-zinc-500 text-sm md:text-base leading-relaxed">
+                                    Transform standard PET plastic bottles into a sophisticated geometric desk lamp. This AI-optimized pattern maximizes structural integrity.
+                                </p>
+                            </div>
+                            
+                            <div className="w-full md:w-auto bg-surface-container-low p-4 rounded-2xl flex items-center gap-6 border border-zinc-200/50">
+                                <div>
+                                    <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Color Finish</label>
+                                    <div className="flex gap-2">
+                                        <button className="w-6 h-6 rounded-full bg-green-700 ring-2 ring-offset-1 ring-primary"></button>
+                                        <button className="w-6 h-6 rounded-full bg-zinc-800"></button>
+                                        <button className="w-6 h-6 rounded-full bg-amber-200"></button>
+                                    </div>
+                                </div>
+                                <div className="h-10 w-px bg-zinc-300"></div>
+                                <button className="primary-gradient text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all">
+                                    Download Plan
+                                </button>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            );
+        };
+
+        const HistoryArchive = () => {
+             return (
+                <main className="pt-24 md:ml-64 min-h-screen bg-surface pb-24 md:pb-12">
+                    <div className="max-w-5xl mx-auto px-6 md:px-8">
+                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                            <div>
+                                <h1 className="text-3xl md:text-4xl font-headline font-extrabold tracking-tight text-on-surface mb-1">History Archive</h1>
+                                <p className="text-sm text-zinc-500 font-body">Review and manage your past material recognition sessions.</p>
+                            </div>
+                            <button className="self-start md:self-auto flex items-center gap-2 bg-white border border-zinc-200 px-4 py-2 rounded-xl font-bold text-sm text-zinc-600 active:scale-95 transition-all shadow-sm">
+                                <span className="material-symbols-outlined text-sm">filter_list</span>
+                                Filter
+                            </button>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-sm border border-zinc-100 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse min-w-[600px]">
+                                    <thead>
+                                        <tr className="bg-surface-container-low/50">
+                                            <th className="px-6 py-4 font-headline font-bold text-xs text-zinc-500 uppercase tracking-wider">Session</th>
+                                            <th className="px-6 py-4 font-headline font-bold text-xs text-zinc-500 uppercase tracking-wider">Date</th>
+                                            <th className="px-6 py-4 font-headline font-bold text-xs text-zinc-500 uppercase tracking-wider">Items</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-zinc-100">
+                                        <tr className="hover:bg-zinc-50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-lg bg-zinc-100 flex-shrink-0 overflow-hidden hidden sm:block">
+                                                        <img className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdPpAojnKduiiQZyGnfN1343BEc3U0QbXL9Bw1OurBqNtYQiJfKeTJm1ZaG-ttdK8itaCOglQt9jSkakoNS1LKIgrO2FpvA_ly9qlewJOw-u-WhMQjiC1nH3Bz4fLOoZK2mqGZz17unPlVgeyd5mP4My0xrLepJC4Cd4-SZTgExg8viFibPMkZssb-rbr1Q8OH5YT3f32sj0sYAe2bTtZY5aBlGJJM4L9P9ORS6tXxI2w-d5Z2QvUiSWYparMrVJdq3P0YwWi9eg" />
+                                                    </div>
+                                                    <div>
+                                                        <Link to="/session-detail" className="font-bold text-sm text-on-surface hover:text-primary">Coastal Cleanup #02</Link>
+                                                        <p className="text-[10px] text-zinc-500">Point Reyes, CA</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs font-medium text-zinc-600">May 24, 2024</td>
+                                            <td className="px-6 py-4">
+                                                <span className="px-2 py-1 bg-primary-fixed text-on-primary-fixed rounded-md text-[10px] font-bold mr-1">42 Plastic</span>
+                                            </td>
+                                        </tr>
+                                        <tr className="hover:bg-zinc-50 transition-colors">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-10 h-10 rounded-lg bg-zinc-100 flex-shrink-0 overflow-hidden hidden sm:block">
+                                                        <img className="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAJEOsGLbghiV9OCps90iVLxRGaOA5DfpivKyrDu297Jz46n1D_CZcPsrqlfbiz5OkZGDdSOe9nxDxp3_a-lnz6oD7lZGmfsMXle6gHs6UNdX9RqyBzTbvYLtPGjtVjg25U8qFzyEFYqGTlydkaEgoKEs4i4UhRYafXmh8kFxDzPRWVoW9JJC6pNOiKmrxtsi9iS1-bPB7VNAqR3kUe3Muxv3XlbYhqXeQrVbYstn4n_j_CEl-qH3kXd4E7adPz69193bMZU0JP5g" />
+                                                    </div>
+                                                    <div>
+                                                        <Link to="/session-detail" className="font-bold text-sm text-on-surface hover:text-primary">Office Recycling</Link>
+                                                        <p className="text-[10px] text-zinc-500">Main St. Hub</p>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-xs font-medium text-zinc-600">May 21, 2024</td>
+                                            <td className="px-6 py-4">
+                                                <span className="px-2 py-1 bg-zinc-200 text-zinc-700 rounded-md text-[10px] font-bold">108 Paper</span>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div className="px-6 py-3 border-t border-zinc-100 flex items-center justify-between bg-zinc-50/50">
+                                <p className="text-[10px] text-zinc-500 font-medium">Showing 1-2 of 124</p>
+                                <div className="flex gap-1">
+                                    <button className="p-1 text-zinc-400 disabled:opacity-50" disabled><span className="material-symbols-outlined text-sm">chevron_left</span></button>
+                                    <button className="p-1 text-zinc-600"><span className="material-symbols-outlined text-sm">chevron_right</span></button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </main>
+            );
+        };
+
+        const App = () => {
+            return (
+                <MemoryRouter>
+                    <div className="min-h-screen bg-surface flex flex-col">
+                        <TopBar />
+                        <SideNav />
+                        <div className="flex-1">
+                            <Routes>
+                                <Route path="/" element={<Dashboard />} />
+                                <Route path="/new-session" element={<NewSession />} />
+                                <Route path="/recognize" element={<Recognize />} />
+                                <Route path="/session-detail" element={<SessionDetail />} />
+                                <Route path="/crafting" element={<Crafting3D />} />
+                                <Route path="/history" element={<HistoryArchive />} />
+                            </Routes>
+                        </div>
+                        <Footer />
+                        <MobileBottomNav />
+                    </div>
+                </MemoryRouter>
+            );
+        };
+
+        const root = createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
