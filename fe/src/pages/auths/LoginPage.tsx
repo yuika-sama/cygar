@@ -1,13 +1,49 @@
+
 import { Apple, CircleDot, Leaf, Lock, Mail, Recycle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { auth } from '../../utils/firebase';
+
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    localStorage.setItem('token', 'demo-token');
-    navigate('/');
+    setLoading(true);
+    setError(null);
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      // Lưu token nếu cần
+      const token = await userCredential.user.getIdToken();
+      localStorage.setItem('token', token);
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+      const token = await result.user.getIdToken();
+      localStorage.setItem('token', token);
+      navigate('/');
+    } catch (err: any) {
+      setError(err.message || 'Google login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,7 +79,12 @@ export default function LoginPage() {
             <p className="mt-2 text-zinc-500">Enter your details to access your eco-dashboard.</p>
 
             <div className="mt-8 grid grid-cols-2 gap-3">
-              <button className="inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
+                onClick={handleGoogleLogin}
+                disabled={loading}
+              >
                 <CircleDot size={14} />
                 Google
               </button>
@@ -59,13 +100,15 @@ export default function LoginPage() {
               <span className="h-px flex-1 bg-zinc-200" />
             </div>
 
+
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
                 <label className="mb-2 block text-sm font-semibold text-zinc-700">Email Address</label>
                 <div className="flex items-center rounded-xl bg-zinc-100 px-4 py-3">
                   <input
                     type="email"
-                    defaultValue="hello@livinglens.ai"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
                     className="w-full bg-transparent text-sm text-zinc-700 outline-none"
                     required
                   />
@@ -83,7 +126,8 @@ export default function LoginPage() {
                 <div className="flex items-center rounded-xl bg-zinc-100 px-4 py-3">
                   <input
                     type="password"
-                    defaultValue="password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
                     className="w-full bg-transparent text-sm text-zinc-700 outline-none"
                     required
                   />
@@ -96,11 +140,14 @@ export default function LoginPage() {
                 Remember this device
               </label>
 
+              {error && <div className="text-red-600 text-sm font-semibold">{error}</div>}
+
               <button
                 type="submit"
-                className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-green-700 px-6 py-4 text-base font-bold text-white shadow-lg shadow-green-900/20 transition hover:bg-green-800"
+                className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-green-700 px-6 py-4 text-base font-bold text-white shadow-lg shadow-green-900/20 transition hover:bg-green-800 disabled:opacity-60"
+                disabled={loading}
               >
-                Sign In to Lens
+                {loading ? 'Signing In...' : 'Sign In to Lens'}
               </button>
             </form>
 

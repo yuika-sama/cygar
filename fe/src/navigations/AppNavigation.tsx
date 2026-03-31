@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import AppLayout from '../components/layout/AppLayout';
+import ProtectedRoute from '../components/ProtectedRoute';
 import LoginPage from '../pages/auths/LoginPage';
 import Crafting3DPage from '../pages/users/Crafting3DPage';
 import DashboardPage from '../pages/users/DashboardPage';
@@ -13,13 +14,15 @@ export default function AppNavigation() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route element={<AppLayout />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/new-session" element={<NewSessionPage />} />
-          <Route path="/recognize" element={<RecognizePage />} />
-          <Route path="/session-detail" element={<SessionDetailPage />} />
-          <Route path="/crafting" element={<Crafting3DPage />} />
-          <Route path="/history" element={<HistoryArchivePage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<DashboardPage />} />
+            <Route path="/new-session" element={<NewSessionPage />} />
+            <Route path="/recognize" element={<RecognizePage />} />
+            <Route path="/session-detail" element={<SessionDetailPage />} />
+            <Route path="/crafting" element={<Crafting3DPage />} />
+            <Route path="/history" element={<HistoryArchivePage />} />
+          </Route>
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
