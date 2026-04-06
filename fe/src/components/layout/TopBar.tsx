@@ -32,28 +32,11 @@ export default function TopBar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         <div className="flex items-center gap-4 md:gap-8">
           <Link to="/" className="text-2xl font-black tracking-tight text-green-800">
-            The Living Lens
+            CyGar
           </Link>
-          {/* <div className="hidden w-80 items-center gap-2 rounded-full bg-slate-100 px-4 py-2 md:flex">
-            <Search size={16} className="text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="w-full border-none bg-transparent text-sm outline-none"
-            />
-          </div> */}
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {/* <button className="hidden rounded-full p-2 text-slate-500 transition hover:bg-slate-100 sm:block">
-            <Bell size={18} />
-          </button> */}
-          <button className="hidden rounded-full p-2 text-slate-500 transition hover:bg-slate-100 sm:block">
-            <History size={18} />
-          </button>
-          {/* <button className="hidden rounded-full p-2 text-slate-500 transition hover:bg-slate-100 sm:block">
-            <Trophy size={18} />
-          </button> */}
           <div className="relative ml-1" ref={userMenuRef}>
             <button
               type="button"
@@ -76,7 +59,7 @@ export default function TopBar() {
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
                 >
                   <LogOut size={16} />
-                  <span>Logout</span>
+                  <span>Đăng xuất</span>
                 </button>
               </div>
             )}

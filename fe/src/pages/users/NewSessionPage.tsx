@@ -1,60 +1,87 @@
-import { Aperture } from 'lucide-react';
-import type { FormEvent } from 'react';
+
 import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import CaptureSession from '../../components/CaptureSession';
+import baseApi from '../../services/baseApi';
+
+interface AddSessionImage {
+  original_name?: string;
+  converted_name?: string;
+  image_url?: string;
+}
+
+interface AddSessionResponse {
+  session_id: string;
+  session_name?: string;
+  images?: AddSessionImage[];
+}
 
 export default function NewSessionPage() {
   const navigate = useNavigate();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    navigate('/recognize');
+  // Khi người dùng nhấn nút phân tích trong CaptureSession, chuyển sang trang nhận diện
+  const handleAnalysisComplete = async (files: File[]) => {
+    if (files.length === 0 || submitting) {
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const formData = new FormData();
+      files.forEach((file) => {
+        formData.append('images', file);
+      });
+
+      const response = await baseApi.post<AddSessionResponse>('/add-session', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      const sessionId = response.data?.session_id;
+      if (!sessionId) {
+        throw new Error('Không tạo được session mới');
+      }
+
+      navigate('/recognize', {
+        state: {
+          sessionId,
+          sessionName: response.data?.session_name,
+          images: response.data?.images ?? []
+        }
+      });
+    } catch (err: unknown) {
+      const message =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined;
+      setError(message || 'Không thể tạo session. Vui lòng thử lại.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 p-6 pt-24 md:ml-64 md:p-12">
       <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-green-200/40 blur-3xl" />
-      <div className="relative z-10 grid w-full max-w-4xl grid-cols-1 items-center gap-12 pb-20 lg:grid-cols-12 md:pb-0">
-        <div className="space-y-6 lg:col-span-5">
+      <div className="relative z-10 w-full max-w-4xl">
+        <div className="mb-8 space-y-2">
           <span className="inline-block rounded-full bg-green-100 px-4 py-2 text-xs font-bold uppercase tracking-wider text-green-800">
-            New Session
+            Phiên mới
           </span>
-          <h1 className="text-5xl font-extrabold leading-tight tracking-tight text-slate-900">
-            Initiate <span className="italic text-green-700">Precision</span> Scan.
+          <h1 className="text-3xl font-extrabold leading-tight tracking-tight text-slate-900">
+            Thêm/chụp ảnh vật liệu tái chế
           </h1>
-          <p className="text-lg text-slate-600">
-            Configure your session metadata. The Living Lens uses neural networks to identify materials accurately.
+          <p className="text-base text-slate-600">
+            Chọn hoặc chụp nhiều ảnh vật liệu, sau đó nhấn "Phân tích" để nhận diện và gợi ý tái chế.
           </p>
+          {error && <p className="text-sm font-semibold text-red-600">{error}</p>}
         </div>
-
-        <div className="lg:col-span-7">
-          <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-sm md:p-12">
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="space-y-2">
-                <label className="ml-1 block text-sm font-semibold text-slate-800">Session Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Sunday Park Cleanup"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 outline-none ring-green-300 focus:ring-2"
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="ml-1 block text-sm font-semibold text-slate-800">Notes (Optional)</label>
-                <textarea
-                  rows={3}
-                  placeholder="Briefly describe the context..."
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-slate-100 px-4 py-3 outline-none ring-green-300 focus:ring-2"
-                />
-              </div>
-              <button
-                type="submit"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-green-700 to-green-500 px-8 py-4 text-lg font-bold text-white shadow-lg shadow-green-900/20"
-              >
-                <Aperture size={18} />
-                Start Recognition
-              </button>
-            </form>
-          </div>
-        </div>
+        <CaptureSession onAnalysisComplete={handleAnalysisComplete} isSubmitting={submitting} />
       </div>
     </main>
   );

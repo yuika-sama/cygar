@@ -22,14 +22,14 @@ export default function RecipeModal({ recipe, onClose }: RecipeModalProps) {
           </div>
           <div className="space-y-4">
             <p className="text-slate-600 leading-relaxed">{recipe.description}</p>
-            <h4 className="font-bold">Nguyên liệu cần:</h4>
+            <h4 className="font-bold">Vật dụng cần chuẩn bị:</h4>
             <ul className="list-disc list-inside text-slate-600">
-              <li>1 Chai nhựa PET 1.5L</li>
+              <li>1 chai nhựa PET 1.5L</li>
               <li>Kéo, súng bắn keo</li>
               <li>Dây thừng trang trí</li>
             </ul>
           </div>
-          <button className="w-full mt-8 bg-green-600 text-white py-4 rounded-2xl font-bold">Lưu vào yêu thích</button>
+          <button className="w-full mt-8 bg-green-600 text-white py-4 rounded-2xl font-bold">Lưu vào mục yêu thích</button>
         </div>
       </div>
     </div>

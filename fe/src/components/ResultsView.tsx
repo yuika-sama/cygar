@@ -1,61 +1,100 @@
-import { Info, Play } from 'lucide-react';
-import type { Recipe } from '../types/waste';
+import { ExternalLink, Lightbulb } from 'lucide-react';
+import { useMemo } from 'react';
+import type { ExecuteResponse } from '../types/execute';
 
 interface ResultsViewProps {
-  onShowRecipe: (recipe: Recipe) => void;
+  executeResult: ExecuteResponse;
 }
 
-export default function ResultsView({ onShowRecipe }: ResultsViewProps) {
+export default function ResultsView({ executeResult }: ResultsViewProps) {
+  const images = useMemo(() => executeResult.detection_result?.images ?? [], [executeResult]);
+  const recipes = useMemo(() => executeResult.recommendation_result?.recipes ?? [], [executeResult]);
+
+  const detectedObjects = useMemo(
+    () =>
+      images
+        .flatMap((item) => item.detected_objects ?? [])
+        .sort((a, b) => b.confidence - a.confidence),
+    [images]
+  );
+
+  const firstImage = images.find((item) => Boolean(item.image_url));
+
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-6">Kết quả phân tích</h2>
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-1 bg-white p-6 rounded-3xl shadow-sm border border-slate-100">
-          <img
-            src="https://images.unsplash.com/photo-1523362628745-0c100150b504?w=400"
-            className="w-full rounded-2xl mb-4"
-            alt="Waste"
-          />
-          <div className="flex justify-between items-center mb-2">
-            <span className="px-3 py-1 bg-blue-100 text-blue-600 rounded-full text-xs font-bold uppercase">Nhựa (Plastic)</span>
-            <span className="text-green-500 font-bold">98% Match</span>
+    <div className="space-y-6">
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Kết quả nhận diện</h2>
+            <p className="text-sm text-slate-500">{executeResult.session_name || 'Phiên nhận diện'}</p>
           </div>
-          <h3 className="text-xl font-bold text-slate-800">Chai nhựa PET</h3>
+          <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-bold text-green-700">
+            {images.length} ảnh đã xử lý
+          </span>
         </div>
 
-        <div className="md:col-span-2 space-y-4">
-          <h3 className="font-bold text-slate-700">Gợi ý công thức tái chế:</h3>
-          {[1, 2].map((item) => (
-            <div
-              key={item}
-              className="bg-white p-4 rounded-2xl flex items-center justify-between border border-slate-100 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-center space-x-4">
-                <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center text-green-600">
-                  <Play />
-                </div>
-                <div>
-                  <h4 className="font-bold text-slate-800">Chậu cây tự tưới từ chai nhựa</h4>
-                  <p className="text-sm text-slate-500 text-blue-500">Độ khó: Dễ • Thời gian: 15p</p>
-                </div>
-              </div>
-              <button
-                onClick={() =>
-                  onShowRecipe({
-                    id: 1,
-                    title: 'Chậu cây tự tưới',
-                    difficulty: 'Easy',
-                    description: 'B1: Cắt chai... B2: Luồn dây...'
-                  })
-                }
-                className="p-2 bg-slate-100 rounded-full hover:bg-green-100 text-slate-600 hover:text-green-600"
-              >
-                <Info />
-              </button>
-            </div>
-          ))}
+        {firstImage?.image_url ? (
+          <img src={firstImage.image_url} alt={firstImage.original_name || 'Ảnh kết quả'} className="h-64 w-full rounded-2xl object-cover" />
+        ) : (
+          <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-100 text-sm text-slate-500">
+            Không có ảnh để hiển thị
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-slate-900">Đối tượng được phát hiện</h3>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+            {detectedObjects.length} mục
+          </span>
         </div>
-      </div>
+
+        {detectedObjects.length === 0 ? (
+          <p className="text-sm text-slate-500">Chưa nhận diện được đối tượng trong ảnh.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {detectedObjects.slice(0, 12).map((item, index) => (
+              <div key={`${item.label}-${index}`} className="rounded-2xl border-l-4 border-green-600 bg-slate-100 p-4">
+                <p className="font-bold text-slate-900">{item.label}</p>
+                <p className="text-xs text-slate-500">Độ tin cậy: {Math.round(item.confidence * 100)}%</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+        <h3 className="mb-4 flex items-center gap-2 text-xl font-bold text-slate-900">
+          <Lightbulb size={18} className="text-amber-500" />
+          Gợi ý tái chế
+        </h3>
+
+        {recipes.length === 0 ? (
+          <p className="text-sm text-slate-500">Chưa có gợi ý công thức phù hợp với phiên này.</p>
+        ) : (
+          <div className="space-y-3">
+            {recipes.slice(0, 10).map((recipe, index) => (
+              <a
+                key={`${recipe.title || 'recipe'}-${index}`}
+                href={recipe.link || '#'}
+                target="_blank"
+                rel="noreferrer"
+                className="group flex items-center justify-between rounded-2xl border border-slate-200 p-4 transition hover:border-green-300 hover:bg-green-50/40"
+              >
+                <div>
+                  <h4 className="font-bold text-slate-900 group-hover:text-green-700">{recipe.title || 'Gợi ý tái chế'}</h4>
+                  <p className="text-xs text-slate-500">Yêu thích: {recipe.favorites ?? 0} • Lượt xem: {recipe.view ?? 0}</p>
+                  {recipe.matched_labels && recipe.matched_labels.length > 0 && (
+                    <p className="text-xs text-slate-500">Khớp nhãn: {recipe.matched_labels.join(', ')}</p>
+                  )}
+                </div>
+                <ExternalLink size={16} className="text-slate-400 group-hover:text-green-700" />
+              </a>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

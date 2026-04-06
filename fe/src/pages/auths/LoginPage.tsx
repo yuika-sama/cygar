@@ -1,9 +1,8 @@
 
-import { Apple, CircleDot, Leaf, Lock, Mail, Recycle } from 'lucide-react';
+import { CircleDot, Leaf, Lock, Mail, Recycle } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { signInWithEmailAndPassword, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../../utils/firebase';
+import baseApi from '../../services/baseApi';
 
 
 export default function LoginPage() {
@@ -18,42 +17,35 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      // Lưu token nếu cần
-      const token = await userCredential.user.getIdToken();
-      localStorage.setItem('token', token);
-      navigate('/');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
+      const response = await baseApi.post('/auth/login', {
+        email,
+        password
+      });
 
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-      const token = await result.user.getIdToken();
-      localStorage.setItem('token', token);
+      const accessToken = response.data?.access_token as string | undefined;
+      if (!accessToken) {
+        throw new Error('Phản hồi đăng nhập không hợp lệ');
+      }
+
+      localStorage.setItem('token', accessToken);
+      localStorage.setItem('accessToken', accessToken);
       navigate('/');
     } catch (err: any) {
-      setError(err.message || 'Google login failed');
+      const message = err?.response?.data?.detail || err?.message || 'Đăng nhập thất bại';
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-4 py-10">
+    <main className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
       <div className="grid w-full max-w-6xl overflow-hidden rounded-3xl bg-white shadow-2xl lg:grid-cols-2">
-        <section className="relative hidden min-h-[700px] overflow-hidden bg-gradient-to-br from-green-900 via-green-700 to-slate-600 p-10 text-white lg:block">
+        <section className="relative hidden min-h-[700px] overflow-hidden bg-gradient-to-br from-emerald-950 via-green-800 to-cyan-700 p-10 text-white lg:block">
           <div className="absolute inset-0 bg-black/20" />
           <img
             src="https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=1200"
-            alt="Green movement"
+            alt="Hành trình xanh"
             className="absolute inset-0 h-full w-full object-cover opacity-25"
           />
 
@@ -62,48 +54,43 @@ export default function LoginPage() {
               <span className="rounded-lg bg-green-300/20 p-2">
                 <Leaf size={20} />
               </span>
-              <span>The Living Lens</span>
+              <span>CyGar</span>
             </div>
             <h1 className="max-w-sm text-6xl font-black leading-[1.05] tracking-tight">
-              Join the Green Movement
+              Tinh gọn thói quen tái chế mỗi ngày
             </h1>
             <p className="mt-6 max-w-md text-lg text-green-100">
-              Use AI precision to transform how you recycle. Your journey towards a sustainable future starts with a single scan.
+              Chụp ảnh vật liệu, để AI nhận diện và gợi ý tái chế thực tế. Bắt đầu hành trình sống xanh chỉ với một lần quét.
             </p>
           </div>
         </section>
 
         <section className="p-8 sm:p-12">
           <div className="mx-auto max-w-md">
-            <h2 className="text-4xl font-extrabold tracking-tight text-zinc-900">Welcome Back</h2>
-            <p className="mt-2 text-zinc-500">Enter your details to access your eco-dashboard.</p>
+            <h2 className="text-4xl font-extrabold tracking-tight text-zinc-900">Chào mừng trở lại</h2>
+            <p className="mt-2 text-zinc-500">Đăng nhập để tiếp tục sử dụng CyGar.</p>
 
-            <div className="mt-8 grid grid-cols-2 gap-3">
+            <div className="mt-8 grid grid-cols-1 gap-3">
               <button
                 type="button"
                 className="inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
-                onClick={handleGoogleLogin}
-                disabled={loading}
+                disabled
               >
                 <CircleDot size={14} />
-                Google
-              </button>
-              <button className="inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
-                <Apple size={14} />
-                Apple
+                Đăng nhập Google (sắp hỗ trợ)
               </button>
             </div>
 
             <div className="my-8 flex items-center gap-4 text-xs font-bold tracking-wider text-zinc-400">
               <span className="h-px flex-1 bg-zinc-200" />
-              <span>OR CONTINUE WITH</span>
+              <span>HOẶC DÙNG EMAIL</span>
               <span className="h-px flex-1 bg-zinc-200" />
             </div>
 
 
             <form className="space-y-5" onSubmit={handleLogin}>
               <div>
-                <label className="mb-2 block text-sm font-semibold text-zinc-700">Email Address</label>
+                <label className="mb-2 block text-sm font-semibold text-zinc-700">Địa chỉ email</label>
                 <div className="flex items-center rounded-xl bg-zinc-100 px-4 py-3">
                   <input
                     type="email"
@@ -118,9 +105,9 @@ export default function LoginPage() {
 
               <div>
                 <div className="mb-2 flex items-center justify-between">
-                  <label className="block text-sm font-semibold text-zinc-700">Password</label>
+                  <label className="block text-sm font-semibold text-zinc-700">Mật khẩu</label>
                   <button type="button" className="text-xs font-bold text-green-700 hover:underline">
-                    Forgot?
+                    Quên mật khẩu?
                   </button>
                 </div>
                 <div className="flex items-center rounded-xl bg-zinc-100 px-4 py-3">
@@ -137,7 +124,7 @@ export default function LoginPage() {
 
               <label className="flex items-center gap-2 text-sm text-zinc-600">
                 <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
-                Remember this device
+                Ghi nhớ thiết bị này
               </label>
 
               {error && <div className="text-red-600 text-sm font-semibold">{error}</div>}
@@ -147,14 +134,14 @@ export default function LoginPage() {
                 className="mt-2 inline-flex w-full items-center justify-center rounded-full bg-green-700 px-6 py-4 text-base font-bold text-white shadow-lg shadow-green-900/20 transition hover:bg-green-800 disabled:opacity-60"
                 disabled={loading}
               >
-                {loading ? 'Signing In...' : 'Sign In to Lens'}
+                {loading ? 'Đang đăng nhập...' : 'Đăng nhập vào CyGar'}
               </button>
             </form>
 
             <p className="mt-10 text-center text-sm text-zinc-500">
-              New to the lens?{' '}
-              <Link to="/signup" className="font-bold text-green-700 hover:underline">
-                Sign Up
+              Chưa có tài khoản?{' '}
+              <Link to="/login" className="font-bold text-green-700 hover:underline">
+                Liên hệ quản trị viên
               </Link>
             </p>
 

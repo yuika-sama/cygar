@@ -6,12 +6,12 @@ export default function MobileBottomNav() {
     <nav className="fixed bottom-0 left-0 z-50 flex w-full items-center justify-between border-t border-slate-200 bg-white/95 px-6 py-4 backdrop-blur-xl md:hidden">
       <NavLink to="/" className="flex flex-col items-center gap-1 text-slate-500">
         <Home size={18} />
-        <span className="text-[10px] font-bold uppercase">Home</span>
+        <span className="text-[10px] font-bold uppercase">Trang chủ</span>
       </NavLink>
 
       <NavLink to="/recognize" className="flex flex-col items-center gap-1 text-green-700">
         <Aperture size={18} />
-        <span className="text-[10px] font-bold uppercase">Scan</span>
+        <span className="text-[10px] font-bold uppercase">Nhận diện</span>
       </NavLink>
 
       <div className="relative -top-6">
@@ -25,12 +25,12 @@ export default function MobileBottomNav() {
 
       <NavLink to="/history" className="flex flex-col items-center gap-1 text-slate-500">
         <History size={18} />
-        <span className="text-[10px] font-bold uppercase">History</span>
+        <span className="text-[10px] font-bold uppercase">Lịch sử</span>
       </NavLink>
 
       <button className="flex flex-col items-center gap-1 text-slate-500">
         <Settings size={18} />
-        <span className="text-[10px] font-bold uppercase">Settings</span>
+        <span className="text-[10px] font-bold uppercase">Cài đặt</span>
       </button>
     </nav>
   );

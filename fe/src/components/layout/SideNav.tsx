@@ -14,11 +14,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { path: '/', label: 'Dashboard', icon: Home },
+  { path: '/', label: 'Tổng quan', icon: Home },
 //   { path: '/recognize', label: 'Recognize', icon: Aperture },
 //   { path: '/crafting', label: 'Crafting 3D', icon: Palette },
 //   { path: '/session-detail', label: 'Session Detail', icon: Sparkles },
-  { path: '/history', label: 'History', icon: FolderClock }
+  { path: '/history', label: 'Lịch sử', icon: FolderClock }
 ];
 
 export default function SideNav() {
@@ -30,8 +30,8 @@ export default function SideNav() {
             <Sparkles size={20} />
           </div>
           <div>
-            <p className="text-sm font-bold text-slate-800">Eco-profile lens</p>
-            <p className="text-[10px] uppercase tracking-wider text-slate-500">AI Recycling Guide</p>
+            <p className="text-sm font-bold text-slate-800">CyGar</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-500">Trợ lý tái chế AI</p>
           </div>
         </div>
       </div>
@@ -61,7 +61,7 @@ export default function SideNav() {
           className="flex w-full items-center justify-center gap-2 rounded-full bg-gradient-to-br from-green-700 to-green-500 py-3 text-sm font-bold text-white shadow-lg shadow-green-900/20"
         >
           <Plus size={16} />
-          New Scan
+          Phiên mới
         </NavLink>
       </div>
     </aside>
