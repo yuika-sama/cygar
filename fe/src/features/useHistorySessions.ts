@@ -3,6 +3,9 @@ import baseApi from "../services/baseApi";
 
 export interface HistorySession {
   id: string;
+  sessionId: string;
+  executionId: string;
+  action: string;
   title: string;
   location: string;
   date: string;
@@ -13,6 +16,7 @@ export interface HistorySession {
 interface HistoryApiItem {
   action?: string;
   target_id?: string;
+  session_id?: string;
   target_name?: string;
   detected_count?: number;
   timestamp?: string | { _seconds?: number; seconds?: number };
@@ -53,9 +57,17 @@ const fetchHistorySessions = async (): Promise<HistorySession[]> => {
     const detectedCount = Number(item.detected_count ?? 0);
     const targetName = item.target_name || "Vật liệu chưa xác định";
     const action = item.action || "execute";
+    const sessionId =
+      item.session_id ||
+      (action === "add_session" ? item.target_id : "") ||
+      "";
+    const executionId = action === "execute" ? item.target_id || "" : "";
 
     return {
       id: item.target_id || String(index + 1),
+      sessionId,
+      executionId,
+      action,
       title: `${targetName}`,
       location: `Hành động: ${action}`,
       date: formatDate(item.timestamp),

@@ -32,6 +32,8 @@ db = firestore.client()
 
 # Lấy từ Firebase Console -> Project Settings -> General -> Web API Key
 FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY")
+FIREBASE_SSL_VERIFY = os.getenv("FIREBASE_SSL_VERIFY", "true").lower() != "false"
+FIREBASE_CA_BUNDLE = os.getenv("FIREBASE_CA_BUNDLE")
 
 app = FastAPI(title="Firebase FastAPI Backend")
 security = HTTPBearer()
@@ -134,10 +136,16 @@ def _ensure_user_document(uid: str, token_payload: Dict[str, Any]) -> Dict[str, 
     return user_doc
 
 
-def _build_history_record(execution_id: str, primary_label: str | None, detected_count: int) -> Dict[str, Any]:
+def _build_history_record(
+    execution_id: str,
+    session_id: str,
+    primary_label: str | None,
+    detected_count: int,
+) -> Dict[str, Any]:
     return {
         "action": "execute",
         "target_id": execution_id,
+        "session_id": session_id,
         "target_name": primary_label or "unknown",
         "detected_count": detected_count,
         "timestamp": datetime.now(timezone.utc),
@@ -187,21 +195,43 @@ async def login(req: LoginRequest):
         "returnSecureToken": True
     }
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(url, json=payload)
+    verify_config: bool | str = FIREBASE_SSL_VERIFY
+    if FIREBASE_SSL_VERIFY:
+        ca_bundle = FIREBASE_CA_BUNDLE or os.getenv("SSL_CERT_FILE") or os.getenv("REQUESTS_CA_BUNDLE")
+        if ca_bundle:
+            verify_config = ca_bundle
 
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Email hoặc mật khẩu không chính xác"
-            )
+    try:
+        async with httpx.AsyncClient(timeout=15.0, verify=verify_config) as client:
+            response = await client.post(url, json=payload)
 
-        data = response.json()
-        return {
-            "status": "success",
-            "access_token": data["idToken"],
-            "expires_in": data["expiresIn"]
-        }
+    except httpx.ConnectError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=(
+                "Khong ket noi duoc Firebase Auth do loi SSL. "
+                "Hay cau hinh FIREBASE_CA_BUNDLE (duong dan CA) hoac chi dung FIREBASE_SSL_VERIFY=false tren moi truong local."
+            ),
+        ) from exc
+
+    except httpx.RequestError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Khong the goi Firebase Auth. Vui long kiem tra mang/proxy cua server.",
+        ) from exc
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email hoặc mật khẩu không chính xác"
+        )
+
+    data = response.json()
+    return {
+        "status": "success",
+        "access_token": data["idToken"],
+        "expires_in": data["expiresIn"]
+    }
 
 
 @app.get("/dashboards")
@@ -467,7 +497,9 @@ async def execute(
     user_ref.collection("executions").document(execution_id).set(execution_payload)
 
     existing_history = current_user_data.get("history", [])
-    updated_history = [_build_history_record(execution_id, primary_label, len(detected_labels))] + existing_history
+    updated_history = [
+        _build_history_record(execution_id, req.session_id, primary_label, len(detected_labels))
+    ] + existing_history
 
     user_ref.set(
         {
@@ -496,6 +528,42 @@ async def execute(
             "uid": uid,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "total_images": len(image_records),
+        },
+    }
+
+
+@app.get("/executions/{execution_id}")
+def get_execution_detail(execution_id: str, user_token: dict = Depends(verify_token)):
+    """Lay chi tiet execution da xu ly truoc do theo execution_id."""
+    uid = user_token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token không chứa uid")
+
+    execution_ref = db.collection("users").document(uid).collection("executions").document(execution_id)
+    execution_snapshot = execution_ref.get()
+    if not execution_snapshot.exists:
+        raise HTTPException(status_code=404, detail="Không tìm thấy execution")
+
+    execution_data = execution_snapshot.to_dict() or {}
+
+    return {
+        "status": "success",
+        "execution_id": execution_data.get("execution_id") or execution_id,
+        "session_id": execution_data.get("session_id"),
+        "session_name": execution_data.get("session_name"),
+        "detection_result": {
+            "detected_labels": execution_data.get("detected_labels", []),
+            "label_frequency": execution_data.get("label_frequency", {}),
+            "images": execution_data.get("images", []),
+        },
+        "recommendation_result": {
+            "recipes": execution_data.get("recipe_suggestions", []),
+            "by_label": execution_data.get("recipe_suggestions_by_label", {}),
+        },
+        "post_info": {
+            "uid": uid,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "total_images": len(execution_data.get("images", [])) if isinstance(execution_data.get("images"), list) else 0,
         },
     }
 

@@ -1,5 +1,5 @@
 
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useHistorySessions } from '../../features/useHistorySessions';
 
@@ -58,9 +58,23 @@ export default function HistoryArchivePage() {
                           />
                         )}
                         <div>
-                          <Link to="/session-detail" className="text-sm font-bold text-slate-900 hover:text-green-700">
-                            {session.title}
-                          </Link>
+                          {session.sessionId || session.executionId ? (
+                            <Link
+                              to="/session-detail"
+                              state={{
+                                sessionId: session.sessionId,
+                                executionId: session.executionId,
+                                sessionName: session.title
+                              }}
+                              className="text-sm font-bold text-slate-900 hover:text-green-700"
+                            >
+                              {session.title}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-bold text-slate-400" title="Ban ghi cu khong co session id">
+                              {session.title}
+                            </span>
+                          )}
                           <p className="text-[10px] text-slate-500">{session.location}</p>
                         </div>
                       </div>

@@ -47,7 +47,7 @@ export default function NewSessionPage() {
         throw new Error('Không tạo được session mới');
       }
 
-      navigate('/recognize', {
+      navigate('/results', {
         state: {
           sessionId,
           sessionName: response.data?.session_name,

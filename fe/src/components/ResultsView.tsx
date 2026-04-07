@@ -18,11 +18,9 @@ export default function ResultsView({ executeResult }: ResultsViewProps) {
     [images]
   );
 
-  const firstImage = images.find((item) => Boolean(item.image_url));
-
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+      {/* <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">Kết quả nhận diện</h2>
@@ -40,7 +38,7 @@ export default function ResultsView({ executeResult }: ResultsViewProps) {
             Không có ảnh để hiển thị
           </div>
         )}
-      </section>
+      </section> */}
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-4 flex items-center justify-between">

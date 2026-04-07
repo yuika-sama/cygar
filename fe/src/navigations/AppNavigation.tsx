@@ -6,7 +6,7 @@ import Crafting3DPage from '../pages/users/Crafting3DPage';
 import DashboardPage from '../pages/users/DashboardPage';
 import HistoryArchivePage from '../pages/users/HistoryArchivePage';
 import NewSessionPage from '../pages/users/NewSessionPage';
-import RecognizePage from '../pages/users/RecognizePage';
+// import RecognizePage from '../pages/users/RecognizePage';
 import ResultsPage from '../pages/users/ResultsPage';
 import SessionDetailPage from '../pages/users/SessionDetailPage';
 
@@ -19,7 +19,7 @@ export default function AppNavigation() {
           <Route element={<AppLayout />}>
             <Route path="/" element={<DashboardPage />} />
             <Route path="/new-session" element={<NewSessionPage />} />
-            <Route path="/recognize" element={<RecognizePage />} />
+            {/* <Route path="/recognize" element={<RecognizePage />} /> */}
             <Route path="/results" element={<ResultsPage />} />
             <Route path="/session-detail" element={<SessionDetailPage />} />
             <Route path="/crafting" element={<Crafting3DPage />} />
