@@ -4,7 +4,11 @@ import { Link } from 'react-router-dom';
 import { useHistorySessions } from '../../features/useHistorySessions';
 
 export default function HistoryArchivePage() {
-  const { data, loading, error } = useHistorySessions();
+  const { data, loading, error, pagination, nextPage, prevPage } = useHistorySessions();
+  const startItem = pagination.totalItems === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
+  const endItem = pagination.totalItems === 0
+    ? 0
+    : Math.min(pagination.page * pagination.pageSize, pagination.totalItems);
 
   return (
     <main className="min-h-screen bg-slate-50 pb-24 pt-24 md:ml-64 md:pb-12">
@@ -91,17 +95,21 @@ export default function HistoryArchivePage() {
 
           <div className="flex items-center justify-between border-t border-slate-100 bg-slate-50/50 px-6 py-3">
             <p className="text-[10px] font-medium text-slate-500">
-              {data
-                ? data.length > 0
-                  ? `Hiển thị 1-${data.length} trên ${data.length}`
-                  : 'Hiển thị 0 trên 0'
-                : ''}
+              {`Hiển thị ${startItem}-${endItem} trên ${pagination.totalItems}`}
             </p>
             <div className="flex gap-1">
-              <button disabled className="p-1 text-slate-400">
+              <button
+                disabled={loading || !pagination.hasPrev}
+                onClick={prevPage}
+                className="p-1 text-slate-600 disabled:text-slate-400"
+              >
                 <ChevronLeft size={16} />
               </button>
-              <button className="p-1 text-slate-600">
+              <button
+                disabled={loading || !pagination.hasNext}
+                onClick={nextPage}
+                className="p-1 text-slate-600 disabled:text-slate-400"
+              >
                 <ChevronRight size={16} />
               </button>
             </div>

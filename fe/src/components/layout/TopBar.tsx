@@ -29,7 +29,7 @@ export default function TopBar() {
 
   return (
     <header className="fixed top-0 z-40 w-full border-b border-slate-200 bg-white/85 px-6 py-3 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between">
+      <div className="flex max-w justify-between">
         <div className="flex items-center gap-4 md:gap-8">
           <Link to="/" className="text-2xl font-black tracking-tight text-green-800">
             CyGar

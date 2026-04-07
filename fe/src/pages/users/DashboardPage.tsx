@@ -12,7 +12,8 @@ export default function DashboardPage() {
         <section className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <h1 className="mb-2 text-4xl font-black tracking-tight text-slate-900">
-              {loading ? 'Đang tải...' : error ? 'Có lỗi xảy ra' : `Xin chào, ${data?.username || ''}`}
+              {/* {loading ? 'Đang tải...' : error ? 'Có lỗi xảy ra' : `Xin chào, ${data?.username || ''}`} */}
+              {loading ? 'Đang tải...' : error ? 'Có lỗi xảy ra' : `Xin chào, User!`}
             </h1>
             <p className="font-medium text-slate-500">
               {loading

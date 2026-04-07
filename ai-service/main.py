@@ -4,27 +4,32 @@ import httpx
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+
+import logging
 
 import numpy as np
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from fastapi.staticfiles import StaticFiles
+
 from PIL import Image
 from pydantic import BaseModel
+
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
+
 from dotenv import load_dotenv
+from starlette.responses import StreamingResponse
 from ultralytics import YOLO
 
 from utils.train import OptimizedRecyclingRecommender
 
+import json
+
 # --- TẢI BIẾN MÔI TRƯỜNG TỪ FILE .env ---
-load_dotenv() # CHÚ Ý: Bắt buộc phải gọi hàm này trước khi dùng os.getenv
+load_dotenv()
 
 # --- KHỞI TẠO FIREBASE ---
-# Đường dẫn tới file service account tải từ Firebase
 if not firebase_admin._apps:
     cred = credentials.Certificate("serviceAccountKey.json")
     firebase_admin.initialize_app(cred)
@@ -35,8 +40,12 @@ FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY")
 FIREBASE_SSL_VERIFY = os.getenv("FIREBASE_SSL_VERIFY", "true").lower() != "false"
 FIREBASE_CA_BUNDLE = os.getenv("FIREBASE_CA_BUNDLE")
 
+CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
+CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
+CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+CLOUDINARY_FOLDER = os.getenv("CLOUDINARY_FOLDER", "cygar")
+
 app = FastAPI(title="Firebase FastAPI Backend")
-security = HTTPBearer()
 
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
@@ -48,23 +57,20 @@ ALLOWED_ORIGINS = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=False,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 BASE_DIR = Path(__file__).resolve().parent
-MODEL_PATHS = [
-    BASE_DIR / "utils" / "models" / "waste_classification.pt",
-    BASE_DIR / "utils" / "models" / "waste_classifcation.pt",
-]
-UPLOADS_DIR = BASE_DIR / "uploads"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
 
-app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
-
-_waste_detector: YOLO | None = None
-_recommender: OptimizedRecyclingRecommender | None = None
+# helpers contain refactored pieces extracted from this file
+from helpers.models import get_waste_detector, get_recommender
+from helpers.chatbot_rag import get_chat_rag_service
+from helpers.firestore_utils import ensure_user_document, build_history_record
+from helpers.cloud import build_cloudinary_image_url, upload_webp_to_cloudinary
+from helpers.http import download_image_bytes
+from helpers.auth import verify_token
 
 
 # --- MODEL DỮ LIỆU ---
@@ -75,6 +81,17 @@ class LoginRequest(BaseModel):
 
 class ExecuteRequest(BaseModel):
     session_id: str
+
+class Message(BaseModel):
+    role: str
+    content: str
+
+class ChatRequest(BaseModel):
+    model: str = os.getenv("SENTENCE_TRANSFORMER_MODEL", "all-MiniLM-L6-v2")
+    messages: List[Message]
+    options: Optional[dict] = None
+    # backward-compatible key
+    option: Optional[dict] = None
 
 
 def _to_firestore_safe(value: Any) -> Any:
@@ -87,91 +104,11 @@ def _to_firestore_safe(value: Any) -> Any:
     return value
 
 
-def get_waste_detector() -> YOLO:
-    global _waste_detector
-    if _waste_detector is not None:
-        return _waste_detector
-
-    model_path = next((path for path in MODEL_PATHS if path.exists()), None)
-    if model_path is None:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Không tìm thấy model waste_classification.pt trong utils/models"
-        )
-
-    _waste_detector = YOLO(str(model_path))
-    return _waste_detector
-
-
-def get_recommender() -> OptimizedRecyclingRecommender:
-    global _recommender
-    if _recommender is not None:
-        return _recommender
-
-    recommender = OptimizedRecyclingRecommender(model_dir=str(BASE_DIR / "utils" / "models" / "recommender_cache"))
-    dataset_paths = [
-        str(BASE_DIR / "utils" / "dataset" / "projects_craft.csv"),
-        str(BASE_DIR / "utils" / "dataset" / "projects_workshop.csv"),
-    ]
-    recommender.train_or_load_model(file_paths=dataset_paths, force_retrain=False)
-    _recommender = recommender
-    return _recommender
-
-
-def _ensure_user_document(uid: str, token_payload: Dict[str, Any]) -> Dict[str, Any]:
-    user_ref = db.collection("users").document(uid)
-    snapshot = user_ref.get()
-    if snapshot.exists:
-        return snapshot.to_dict() or {}
-
-    user_doc = {
-        "display_name": token_payload.get("name") or token_payload.get("display_name"),
-        "email": token_payload.get("email"),
-        "usage_count": 0,
-        "last_updated": firestore.SERVER_TIMESTAMP,
-        "history": [],
-        "viewed_recipes": [],
-    }
-    user_ref.set(user_doc, merge=True)
-    return user_doc
-
-
-def _build_history_record(
-    execution_id: str,
-    session_id: str,
-    primary_label: str | None,
-    detected_count: int,
-) -> Dict[str, Any]:
-    return {
-        "action": "execute",
-        "target_id": execution_id,
-        "session_id": session_id,
-        "target_name": primary_label or "unknown",
-        "detected_count": detected_count,
-        "timestamp": datetime.now(timezone.utc),
-    }
-
-
-def _build_public_image_url(relative_path: str) -> str:
-    base_url = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000").rstrip("/")
-    return f"{base_url}/{relative_path.lstrip('/')}"
-
-
-# --- MIDDLEWARE / DEPENDENCY XÁC MINH TOKEN ---
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Xác minh Bearer token gửi lên từ client qua Firebase Admin SDK"""
-    token = credentials.credentials
-    try:
-        # Giải mã và xác thực token
-        decoded_token = auth.verify_id_token(token)
-        return decoded_token  # Trả về payload của user (chứa uid, email...)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token không hợp lệ hoặc đã hết hạn",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
+def _get_last_user_message(messages: List[Dict[str, Any]]) -> Optional[str]:
+    for item in reversed(messages):
+        if item.get("role") == "user" and item.get("content"):
+            return str(item.get("content"))
+    return None
 
 # --- ROUTES ---
 
@@ -241,7 +178,7 @@ def get_dashboards(user_token: dict = Depends(verify_token)):
     if not uid:
         raise HTTPException(status_code=401, detail="Token không chứa uid")
 
-    user_data = _ensure_user_document(uid, user_token)
+    user_data = ensure_user_document(uid, user_token)
     viewed_recipes = user_data.get("viewed_recipes", [])
     if not isinstance(viewed_recipes, list):
         viewed_recipes = []
@@ -253,22 +190,38 @@ def get_dashboards(user_token: dict = Depends(verify_token)):
 
 
 @app.get("/history")
-def get_history(user_token: dict = Depends(verify_token)):
-    """Lấy 10 lịch sử gần nhất của user"""
+def get_history(
+    page: int = Query(1, ge=1, description="Trang hiện tại, bắt đầu từ 1"),
+    page_size: int = Query(10, ge=1, le=50, description="Số bản ghi mỗi trang"),
+    user_token: dict = Depends(verify_token)
+):
+    """Lấy lịch sử theo phân trang"""
     uid = user_token.get("uid")
     if not uid:
         raise HTTPException(status_code=401, detail="Token không chứa uid")
 
-    user_data = _ensure_user_document(uid, user_token)
+    user_data = ensure_user_document(uid, user_token)
     history = user_data.get("history", [])
     if not isinstance(history, list):
         history = []
 
-    # Sắp xếp lịch sử theo timestamp mới nhất (nếu cần) và giới hạn 10 phần tử
-    # Giả định dữ liệu history đã được lưu theo thứ tự, cắt lấy 10:
-    recent_history = history[:10]
+    total_items = len(history)
+    total_pages = (total_items + page_size - 1) // page_size if total_items > 0 else 0
+    start = (page - 1) * page_size
+    end = start + page_size
+    paged_history = history[start:end] if start < total_items else []
 
-    return recent_history
+    return {
+        "items": paged_history,
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+        },
+    }
 
 
 @app.post("/add-session")
@@ -287,8 +240,6 @@ async def add_session(
 
     session_id = str(uuid.uuid4())
     session_name = f"Phiên {datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    session_upload_dir = UPLOADS_DIR / uid / session_id
-    session_upload_dir.mkdir(parents=True, exist_ok=True)
 
     image_records: List[Dict[str, Any]] = []
     for image in images:
@@ -303,27 +254,31 @@ async def add_session(
 
         width, height = pil_image.size
         image_stem = Path(image.filename or f"image-{uuid.uuid4().hex[:8]}").stem
-        webp_filename = f"{image_stem}.webp"
-        webp_path = session_upload_dir / webp_filename
-        pil_image.save(webp_path, format="WEBP", quality=80, method=6)
+        webp_filename = f"{image_stem}-{uuid.uuid4().hex[:8]}.webp"
 
-        relative_path = str(webp_path.relative_to(BASE_DIR)).replace("\\", "/")
+        webp_buffer = io.BytesIO()
+        pil_image.save(webp_buffer, format="WEBP", quality=80, method=6)
+        webp_content = webp_buffer.getvalue()
+
+        cloudinary_public_id, image_url = upload_webp_to_cloudinary(uid, session_id, webp_filename, webp_content)
         image_records.append({
             "original_name": image.filename,
             "converted_name": webp_filename,
-            "relative_path": relative_path,
-            "image_url": _build_public_image_url(relative_path),
+            "relative_path": cloudinary_public_id,
+            "storage_path": cloudinary_public_id,
+            "cloudinary_public_id": cloudinary_public_id,
+            "image_url": image_url,
             "mime_type": "image/webp",
             "width": width,
             "height": height,
-            "size_bytes": webp_path.stat().st_size,
+            "size_bytes": len(webp_content),
         })
 
     if not image_records:
         raise HTTPException(status_code=400, detail="Không có ảnh hợp lệ để tạo session")
 
     user_ref = db.collection("users").document(uid)
-    current_user_data = _ensure_user_document(uid, user_token)
+    current_user_data = ensure_user_document(uid, user_token)
 
     session_payload = {
         "session_id": session_id,
@@ -378,7 +333,7 @@ async def execute(
     recommender = get_recommender()
 
     user_ref = db.collection("users").document(uid)
-    current_user_data = _ensure_user_document(uid, user_token)
+    current_user_data = ensure_user_document(uid, user_token)
 
     session_ref = user_ref.collection("sessions").document(req.session_id)
     session_snapshot = session_ref.get()
@@ -396,16 +351,21 @@ async def execute(
     image_records: List[Dict[str, Any]] = []
 
     for session_image in session_images:
-        relative_path = session_image.get("relative_path")
-        if not relative_path:
-            continue
+        cloudinary_public_id = (
+            session_image.get("cloudinary_public_id")
+            or session_image.get("storage_path")
+            or session_image.get("relative_path")
+        )
+        image_url = session_image.get("image_url")
+        if not image_url and cloudinary_public_id:
+            image_url = build_cloudinary_image_url(str(cloudinary_public_id))
 
-        image_path = BASE_DIR / Path(str(relative_path).replace("/", os.sep))
-        if not image_path.exists():
+        if not cloudinary_public_id or not image_url:
             continue
 
         try:
-            pil_image = Image.open(image_path).convert("RGB")
+            image_content = await download_image_bytes(str(image_url))
+            pil_image = Image.open(io.BytesIO(image_content)).convert("RGB")
         except Exception:
             continue
 
@@ -435,13 +395,15 @@ async def execute(
 
         image_records.append({
             "original_name": session_image.get("original_name"),
-            "converted_name": session_image.get("converted_name") or image_path.name,
-            "relative_path": str(relative_path).replace("\\", "/"),
-            "image_url": session_image.get("image_url") or _build_public_image_url(str(relative_path)),
+            "converted_name": session_image.get("converted_name") or Path(str(cloudinary_public_id)).name,
+            "relative_path": str(cloudinary_public_id).replace("\\", "/"),
+            "storage_path": str(cloudinary_public_id).replace("\\", "/"),
+            "cloudinary_public_id": str(cloudinary_public_id).replace("\\", "/"),
+            "image_url": image_url,
             "mime_type": session_image.get("mime_type", "image/webp"),
             "width": width,
             "height": height,
-            "size_bytes": image_path.stat().st_size,
+            "size_bytes": session_image.get("size_bytes") or len(image_content),
             "detected_objects": detections,
         })
 
@@ -498,7 +460,7 @@ async def execute(
 
     existing_history = current_user_data.get("history", [])
     updated_history = [
-        _build_history_record(execution_id, req.session_id, primary_label, len(detected_labels))
+        build_history_record(execution_id, req.session_id, primary_label, len(detected_labels))
     ] + existing_history
 
     user_ref.set(
@@ -604,6 +566,134 @@ def logout(user_token: dict = Depends(verify_token)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail="Lỗi khi xử lý đăng xuất")
+
+@app.get("/ai/tags", tags=["Models"])
+async def get_available_models():
+    """Return chatbot runtime metadata (model + loaded knowledge stats)."""
+    rag_service = get_chat_rag_service()
+    return rag_service.describe()
+
+
+@app.post("/ai/chats", tags=["Chat"])
+def create_chat_session(user_token: dict = Depends(verify_token)):
+    """Tạo một phiên chat mới cho user hiện tại."""
+    uid = user_token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token không chứa uid")
+
+    session_id = str(uuid.uuid4())
+    chat_ref = db.collection("users").document(uid).collection("chats").document(session_id)
+    chat_ref.set({
+        "session_id": session_id,
+        "created_at": firestore.SERVER_TIMESTAMP,
+        "last_updated": firestore.SERVER_TIMESTAMP,
+        "title": "Yuika Chat",
+    })
+    return {"session_id": session_id}
+
+
+@app.get("/ai/chats", tags=["Chat"])
+def list_chat_sessions(user_token: dict = Depends(verify_token), limit: int = 20):
+    """Liệt kê các phiên chat (mặc định theo `last_updated` giảm dần)."""
+    uid = user_token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token không chứa uid")
+
+    chats_ref = db.collection("users").document(uid).collection("chats").order_by("last_updated", direction=firestore.Query.DESCENDING).limit(limit)
+    docs = chats_ref.stream()
+    sessions = []
+    for doc in docs:
+        d = doc.to_dict() or {}
+        created = d.get("created_at")
+        if isinstance(created, datetime):
+            created = created.isoformat()
+        sessions.append({
+            "session_id": doc.id,
+            "created_at": created,
+            "last_message": d.get("last_message"),
+        })
+    return sessions
+
+
+@app.post("/ai/chats/{session_id}/messages", tags=["Chat"])
+def add_chat_message(session_id: str, msg: Message, user_token: dict = Depends(verify_token)):
+    """Thêm một tin nhắn vào phiên chat (user hoặc assistant)."""
+    uid = user_token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token không chứa uid")
+
+    messages_ref = db.collection("users").document(uid).collection("chats").document(session_id).collection("messages")
+    messages_ref.add({
+        "role": msg.role,
+        "content": msg.content,
+        "created_at": firestore.SERVER_TIMESTAMP,
+    })
+
+    # cập nhật last_message trên document phiên
+    chat_doc_ref = db.collection("users").document(uid).collection("chats").document(session_id)
+    chat_doc_ref.set({"last_message": {"role": msg.role, "content": msg.content}, "last_updated": firestore.SERVER_TIMESTAMP}, merge=True)
+
+    return {"status": "success"}
+
+
+@app.get("/ai/chats/{session_id}/messages", tags=["Chat"])
+def get_chat_messages(session_id: str, user_token: dict = Depends(verify_token)):
+    """Lấy danh sách tin nhắn của một phiên, sắp xếp theo thời gian tăng dần."""
+    uid = user_token.get("uid")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Token không chứa uid")
+
+    messages_ref = db.collection("users").document(uid).collection("chats").document(session_id).collection("messages").order_by("created_at", direction=firestore.Query.ASCENDING)
+    docs = messages_ref.stream()
+    items = []
+    for doc in docs:
+        d = doc.to_dict() or {}
+        created = d.get("created_at")
+        if isinstance(created, datetime):
+            created = created.isoformat()
+        items.append({"role": d.get("role"), "content": d.get("content"), "created_at": created})
+    return {"items": items}
+
+@app.post("/ai/chat", tags=["Chat"])
+async def chat_sync(request: ChatRequest):
+    """Sync chat with local RAG (markdown docs + dataset + gesture mapping)."""
+    try:
+        logger = logging.getLogger("uvicorn.error")
+        messages_dict = [msg.model_dump() for msg in request.messages]
+
+        last_user = _get_last_user_message(messages_dict)
+        if not last_user:
+            raise HTTPException(status_code=400, detail="Khong tim thay tin nhan cua user")
+
+        rag_service = get_chat_rag_service()
+        reply_payload = rag_service.answer(user_message=last_user, messages=messages_dict[:-1], top_k=4)
+        logger.debug("chat_sync gesture=%s sources=%s", reply_payload.get("gesture"), reply_payload.get("sources"))
+        return reply_payload
+    except Exception as e:
+        logging.getLogger("uvicorn.error").exception("Error in chat_sync: %s", e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/ai/chat/stream", tags=["Chat"])
+async def chat_stream(request: ChatRequest):
+    """SSE chat endpoint. Emits one JSON event with content + gesture + sources."""
+    async def generate_chunks():
+        logger = logging.getLogger("uvicorn.error")
+        try:
+            messages_dict = [msg.model_dump() for msg in request.messages]
+
+            last_user = _get_last_user_message(messages_dict)
+            if not last_user:
+                yield f"data: {json.dumps({'error': 'No user message provided'})}\n\n"
+                return
+
+            rag_service = get_chat_rag_service()
+            reply_payload = rag_service.answer(user_message=last_user, messages=messages_dict[:-1], top_k=4)
+            yield f"data: {json.dumps(reply_payload, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            logger.exception("Error: %s", e)
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(generate_chunks(), media_type="text/event-stream")
 
 
 # --- CHẠY SERVER ---

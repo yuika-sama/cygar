@@ -70,20 +70,7 @@ export default function LoginPage() {
             <h2 className="text-4xl font-extrabold tracking-tight text-zinc-900">Chào mừng trở lại</h2>
             <p className="mt-2 text-zinc-500">Đăng nhập để tiếp tục sử dụng CyGar.</p>
 
-            <div className="mt-8 grid grid-cols-1 gap-3">
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-full border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
-                disabled
-              >
-                <CircleDot size={14} />
-                Đăng nhập Google (sắp hỗ trợ)
-              </button>
-            </div>
-
             <div className="my-8 flex items-center gap-4 text-xs font-bold tracking-wider text-zinc-400">
-              <span className="h-px flex-1 bg-zinc-200" />
-              <span>HOẶC DÙNG EMAIL</span>
               <span className="h-px flex-1 bg-zinc-200" />
             </div>
 
@@ -106,9 +93,6 @@ export default function LoginPage() {
               <div>
                 <div className="mb-2 flex items-center justify-between">
                   <label className="block text-sm font-semibold text-zinc-700">Mật khẩu</label>
-                  <button type="button" className="text-xs font-bold text-green-700 hover:underline">
-                    Quên mật khẩu?
-                  </button>
                 </div>
                 <div className="flex items-center rounded-xl bg-zinc-100 px-4 py-3">
                   <input
@@ -121,11 +105,6 @@ export default function LoginPage() {
                   <Lock size={16} className="text-zinc-400" />
                 </div>
               </div>
-
-              <label className="flex items-center gap-2 text-sm text-zinc-600">
-                <input type="checkbox" className="h-4 w-4 rounded border-zinc-300" />
-                Ghi nhớ thiết bị này
-              </label>
 
               {error && <div className="text-red-600 text-sm font-semibold">{error}</div>}
 
@@ -140,7 +119,7 @@ export default function LoginPage() {
 
             <p className="mt-10 text-center text-sm text-zinc-500">
               Chưa có tài khoản?{' '}
-              <Link to="/login" className="font-bold text-green-700 hover:underline">
+              <Link to="https://fb.com/yonni1412" className="font-bold text-green-700 hover:underline">
                 Liên hệ quản trị viên
               </Link>
             </p>

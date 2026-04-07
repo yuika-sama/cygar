@@ -61,12 +61,19 @@ const fetchDashboardData = async (): Promise<DashboardData> => {
   const [meRes, dashboardRes, historyRes] = await Promise.all([
     baseApi.get<MeResponse>("/me"),
     baseApi.get<DashboardResponse>("/dashboards"),
-    baseApi.get<HistoryResponseItem[]>("/history"),
+    // /history returns a paginated object: { items: [...], pagination: {...} }
+    // but we also support the (unexpected) case where the API returns a raw array.
+    baseApi.get("/history"),
   ]);
 
   const me = meRes.data || {};
   const dashboard = dashboardRes.data || {};
-  const history = historyRes.data || [];
+  const rawHistory = historyRes.data;
+  const history: HistoryResponseItem[] = Array.isArray(rawHistory)
+    ? rawHistory
+    : Array.isArray((rawHistory as any)?.items)
+    ? (rawHistory as any).items
+    : [];
 
   const usageCount = Number(dashboard.usage_count ?? 0);
   const viewedHistoryCount = Number(dashboard.viewed_history_count ?? 0);
@@ -102,6 +109,7 @@ export function useDashboardData() {
     fetchDashboardData()
       .then((res) => {
         setData(res);
+        console.log(res)
         setError(null);
       })
       .catch((err: unknown) => {

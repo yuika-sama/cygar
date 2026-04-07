@@ -2,7 +2,8 @@ import {
   FolderClock,
   Home,
   Plus,
-  Sparkles
+  Sparkles,
+  Bot
 } from 'lucide-react';
 import type { ComponentType } from 'react';
 import { NavLink } from 'react-router-dom';
@@ -16,7 +17,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { path: '/', label: 'Tổng quan', icon: Home },
 //   { path: '/recognize', label: 'Recognize', icon: Aperture },
-//   { path: '/crafting', label: 'Crafting 3D', icon: Palette },
+  { path: '/ai', label: 'Yuika nè!', icon: Bot },
 //   { path: '/session-detail', label: 'Session Detail', icon: Sparkles },
   { path: '/history', label: 'Lịch sử', icon: FolderClock }
 ];

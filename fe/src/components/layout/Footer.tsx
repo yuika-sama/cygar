@@ -7,13 +7,13 @@ export default function Footer() {
           <p className="mt-1">© 2026 CyGar. Trợ lý nhận diện và tái chế thông minh.</p>
         </div>
         <div className="flex gap-6">
-          <a href="#" className="transition hover:text-green-700">
+          <a href="https://fb.com/yonni1412" className="transition hover:text-green-700">
             Chính sách bảo mật
           </a>
-          <a href="#" className="transition hover:text-green-700">
+          <a href="https://fb.com/yonni1412" className="transition hover:text-green-700">
             Điều khoản sử dụng
           </a>
-          <a href="#" className="transition hover:text-green-700">
+          <a href="https://fb.com/yonni1412" className="transition hover:text-green-700">
             Báo cáo tác động
           </a>
         </div>
