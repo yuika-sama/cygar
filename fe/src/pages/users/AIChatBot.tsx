@@ -146,7 +146,7 @@ export default function AIChatBot() {
   };
 
   return (
-    <main className="min-h-screen px-6 pb-24 pt-24 md:ml-64 bg-zinc-950 text-white">
+    <main className="min-h-screen px-6 pb-24 pt-24 md:ml-64 bg-white text-white">
       <div className="mx-auto max-w-7xl flex gap-6 h-[80vh]">
         
         {/* VIEWPORT MODEL */}
