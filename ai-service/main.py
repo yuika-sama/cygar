@@ -3,13 +3,14 @@ import io
 import httpx
 import uuid
 from datetime import datetime, timezone
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 import logging
 
 import numpy as np
-from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query
+from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 
 from PIL import Image
@@ -63,6 +64,32 @@ app.add_middleware(
 )
 
 BASE_DIR = Path(__file__).resolve().parent
+
+# Caches for lightweight endpoints
+_projects_index_cache = None
+_gesture_map_cache = None
+_gesture_map_cache_time: float | None = None
+
+# TTL for gesture map cache (seconds). Default 24 hours.
+GESTURE_MAP_TTL_SECONDS = int(os.getenv('GESTURE_MAP_TTL_SECONDS', '86400'))
+
+
+def _load_gesture_map() -> dict:
+    global _gesture_map_cache, _gesture_map_cache_time
+    map_path = BASE_DIR / 'helpers' / 'chatbot_knowledge' / 'gesture_motion_map.json'
+    if not map_path.exists():
+        _gesture_map_cache = {}
+        _gesture_map_cache_time = time.time()
+        return _gesture_map_cache
+
+    try:
+        with map_path.open('r', encoding='utf-8') as f:
+            _gesture_map_cache = json.load(f)
+    except Exception:
+        _gesture_map_cache = {}
+
+    _gesture_map_cache_time = time.time()
+    return _gesture_map_cache
 
 # helpers contain refactored pieces extracted from this file
 from helpers.models import get_waste_detector, get_recommender
@@ -572,6 +599,105 @@ async def get_available_models():
     """Return chatbot runtime metadata (model + loaded knowledge stats)."""
     rag_service = get_chat_rag_service()
     return rag_service.describe()
+
+
+@app.get('/ai/projects_index', tags=['Chat'])
+def serve_projects_index(limit: int = 100, offset: int = 0):
+    """Return a paged slice of the prebuilt projects_index.json to help RAG ingestion or frontends.
+
+    - `limit` maximum items to return (default 100, max 1000)
+    - `offset` starting index
+    """
+    global _projects_index_cache
+    if limit < 1 or limit > 1000:
+        limit = 100
+
+    index_path = BASE_DIR / 'helpers' / 'chatbot_knowledge' / 'projects_index.json'
+    if _projects_index_cache is None:
+        if not index_path.exists():
+            raise HTTPException(status_code=404, detail='projects_index.json not found on server')
+        try:
+            with index_path.open('r', encoding='utf-8') as f:
+                _projects_index_cache = json.load(f)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f'Failed to load projects index: {e}')
+
+    total = len(_projects_index_cache) if isinstance(_projects_index_cache, list) else 0
+    start = max(0, offset)
+    end = min(total, start + limit)
+    slice_items = _projects_index_cache[start:end] if total > 0 else []
+
+    return {
+        'total': total,
+        'offset': start,
+        'limit': limit,
+        'items': slice_items,
+    }
+
+
+@app.get('/ai/gesture_map', tags=['Chat'])
+def serve_gesture_map():
+    """Return gesture->motion mapping (loaded from helpers/chatbot_knowledge/gesture_motion_map.json).
+
+    Frontend can call this once at startup and cache the mapping if desired.
+    """
+    global _gesture_map_cache
+    map_path = BASE_DIR / 'helpers' / 'chatbot_knowledge' / 'gesture_motion_map.json'
+    now = time.time()
+    # Reload if cache empty or TTL expired
+    if _gesture_map_cache is None or (_gesture_map_cache_time is not None and (now - _gesture_map_cache_time) > GESTURE_MAP_TTL_SECONDS):
+        _load_gesture_map()
+
+    return _gesture_map_cache or {}
+
+
+@app.post('/ai/gesture_map/refresh', tags=['Chat'])
+def refresh_gesture_map(user_token: dict = Depends(verify_token)):
+    """Invalidate and reload the gesture->motion mapping. Requires authenticated user."""
+    try:
+        m = _load_gesture_map()
+        return {"status": "ok", "mapping": m}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reload gesture map: {e}")
+
+
+@app.post('/ai/gesture_map', tags=['Chat'])
+def save_gesture_map(mapping: Dict[str, str] = Body(...), user_token: dict = Depends(verify_token)):
+    """Save or update gesture->motion mapping. Requires authenticated user.
+
+    Expects a JSON object mapping gesture names to motion filenames, e.g.
+    {"wave": "motion/haru_g_m01.motion3.json"}
+    """
+    uid = user_token.get('uid')
+    if not uid:
+        raise HTTPException(status_code=401, detail='Token không hợp lệ')
+
+    map_path = BASE_DIR / 'helpers' / 'chatbot_knowledge' / 'gesture_motion_map.json'
+    try:
+        # Validate and coerce to simple dict[str,str]
+        clean_map: Dict[str, str] = {}
+        if not isinstance(mapping, dict):
+            raise HTTPException(status_code=400, detail='Payload must be an object mapping strings to strings')
+        for k, v in mapping.items():
+            if not isinstance(k, str) or not isinstance(v, str):
+                raise HTTPException(status_code=400, detail='All keys and values must be strings')
+            clean_map[k] = v
+
+        # Ensure parent dir exists
+        map_path.parent.mkdir(parents=True, exist_ok=True)
+        with map_path.open('w', encoding='utf-8') as f:
+            json.dump(clean_map, f, ensure_ascii=False, indent=2)
+
+        # Update server cache
+        global _gesture_map_cache, _gesture_map_cache_time
+        _gesture_map_cache = clean_map
+        _gesture_map_cache_time = time.time()
+
+        return {"status": "ok", "mapping": clean_map}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/ai/chats", tags=["Chat"])

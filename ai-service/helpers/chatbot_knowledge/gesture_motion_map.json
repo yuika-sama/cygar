@@ -1,0 +1,18 @@
+{
+  "neutral_idle": "/runtime/VRMA/Idle.vrma",
+  "greet_wave": "/runtime/VRMA/Goodbye.vrma",
+  "bow_polite": "/runtime/VRMA/Idle.vrma",
+  "explain_point": "/runtime/VRMA/LookAround.vrma",
+  "think_tilt": "/runtime/VRMA/Thinking.vrma",
+  "suggest_action": "/runtime/VRMA/Relax.vrma",
+  "show_project": "/runtime/VRMA/LookAround.vrma",
+  "list_items": "/runtime/VRMA/LookAround.vrma",
+  "highlight_materials": "/runtime/VRMA/Blush.vrma",
+  "navigate_next": "/runtime/VRMA/Jump.vrma",
+  "navigate_prev": "/runtime/VRMA/Jump.vrma",
+  "open_link_hand": "/runtime/VRMA/Goodbye.vrma",
+  "celebrate_success": "/runtime/VRMA/Clapping.vrma",
+  "empathy_soft": "/runtime/VRMA/Sad.vrma",
+  "ask_clarify": "/runtime/VRMA/Thinking.vrma",
+  "error_shrug": "/runtime/VRMA/Surprised.vrma"
+}

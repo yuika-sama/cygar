@@ -2,6 +2,7 @@
 import { ChartColumn, ChevronRight, Eye, History, Recycle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useDashboardData } from '../../features/useDashboardData';
+import Loading from '../../components/Loading';
 
 export default function DashboardPage() {
   const { data, loading, error } = useDashboardData();
@@ -12,15 +13,22 @@ export default function DashboardPage() {
         <section className="mb-10 flex flex-col justify-between gap-6 md:flex-row md:items-end">
           <div>
             <h1 className="mb-2 text-4xl font-black tracking-tight text-slate-900">
-              {/* {loading ? 'Đang tải...' : error ? 'Có lỗi xảy ra' : `Xin chào, ${data?.username || ''}`} */}
-              {loading ? 'Đang tải...' : error ? 'Có lỗi xảy ra' : `Xin chào, User!`}
+              {loading ? (
+                <Loading text="Đang tải..." inline size="sm" className="text-4xl font-black" />
+              ) : error ? (
+                'Có lỗi xảy ra'
+              ) : (
+                `Xin chào, User!`
+              )}
             </h1>
             <p className="font-medium text-slate-500">
-              {loading
-                ? 'Đang tải dữ liệu tổng quan...'
-                : error
-                ? 'Không thể tải dữ liệu bảng điều khiển.'
-                : `Bạn đã thực hiện ${data?.usageCount ?? 0} lượt sử dụng và xem ${data?.viewedHistoryCount ?? 0} mục lịch sử.`}
+              {loading ? (
+                <Loading text="Đang tải dữ liệu tổng quan..." inline size="sm" className="text-sm text-slate-500" />
+              ) : error ? (
+                'Không thể tải dữ liệu bảng điều khiển.'
+              ) : (
+                `Bạn đã thực hiện ${data?.usageCount ?? 0} lượt sử dụng và xem ${data?.viewedHistoryCount ?? 0} mục lịch sử.`
+              )}
             </p>
           </div>
           <div className="flex gap-3">
@@ -88,7 +96,11 @@ export default function DashboardPage() {
                 Xem tất cả
               </Link>
             </div>
-            {loading && <div>Đang tải...</div>}
+            {loading && (
+              <div className="py-6">
+                <Loading text="Đang tải..." />
+              </div>
+            )}
             {error && <div className="text-red-500">Không thể tải hoạt động.</div>}
             {!loading && !error && data?.recentActivities?.length === 0 && (
               <div>Chưa có hoạt động nào.</div>

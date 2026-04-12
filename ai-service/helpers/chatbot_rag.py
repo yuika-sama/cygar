@@ -157,16 +157,51 @@ class ChatRAGService:
         top_indices = np.argsort(-similarities)[: max(1, top_k)]
         ranked_chunks = [self._chunks[int(idx)] for idx in top_indices]
 
+        # build human-friendly content
         content = self._compose_content(normalized_message, ranked_chunks)
+        # short text for UI (first line)
+        short_text = (content.splitlines()[0] if content else "")
         gesture = self._select_gesture(normalized_message, content)
         sources = self._compact_sources(ranked_chunks)
 
-        return {
+        # If the user asked for recommendations, try to extract dataset projects as suggested_articles
+        message_lc = normalized_message.lower()
+        is_recommend_query = any(keyword in message_lc for keyword in RECOMMEND_KEYWORDS)
+        suggested_articles: List[Dict[str, Any]] = []
+        if is_recommend_query:
+            for idx in top_indices:
+                try:
+                    chunk = self._chunks[int(idx)]
+                    txt = chunk.text
+                    # Try to parse dataset project row_text created in _load_dataset_chunks
+                    # Format: "Dataset project: {title}. ... Reference link: {link or 'n/a'}."
+                    title_match = re.search(r"Dataset project:\s*([^\.]+)\.", txt)
+                    link_match = re.search(r"Reference link:\s*([^\.]+)\.", txt)
+                    title = title_match.group(1).strip() if title_match else None
+                    link = link_match.group(1).strip() if link_match else None
+                    if title:
+                        score = float(similarities[int(idx)]) if similarities is not None else 0.0
+                        suggested_articles.append({
+                            "title": title,
+                            "link": link if link and link != 'n/a' else None,
+                            "snippet": self._trim(txt, 240),
+                            "match_score": round(float(score), 4),
+                        })
+                except Exception:
+                    continue
+
+        reply: Dict[str, Any] = {
             "role": "assistant",
-            "content": content,
+            "text": short_text,
+            "details": content,
             "gesture": gesture,
             "sources": sources,
         }
+
+        if suggested_articles:
+            reply["suggested_articles"] = suggested_articles
+
+        return reply
 
     def _ensure_loaded(self) -> None:
         if self._is_loaded:

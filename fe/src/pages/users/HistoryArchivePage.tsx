@@ -2,6 +2,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useHistorySessions } from '../../features/useHistorySessions';
+import Loading from '../../components/Loading';
 
 export default function HistoryArchivePage() {
   const { data, loading, error, pagination, nextPage, prevPage } = useHistorySessions();
@@ -37,7 +38,9 @@ export default function HistoryArchivePage() {
               <tbody className="divide-y divide-slate-100">
                 {loading && (
                   <tr>
-                    <td colSpan={3} className="px-6 py-8 text-center text-slate-400">Đang tải...</td>
+                    <td colSpan={3} className="px-6 py-8 text-center text-slate-400">
+                      <Loading text="Đang tải..." inline size="sm" className="text-slate-400" />
+                    </td>
                   </tr>
                 )}
                 {error && (

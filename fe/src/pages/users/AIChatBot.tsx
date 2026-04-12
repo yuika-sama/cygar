@@ -1,363 +1,201 @@
-import { useEffect, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
-import { Send, Mic, ChevronDown, RefreshCw, ChevronRight } from 'lucide-react';
-import { useLive2D } from '../../hooks/useLive2D';
-
-const SAMPLE_MESSAGES: Array<{ from: 'user' | 'ai'; text: string }> = [
-  { from: 'ai', text: 'Xin chào! Mình là Yuika — một trợ lý AI của CyGar.' },
-  { from: 'user', text: 'Chào Yuika!' },
-];
+import { useRef, useState, useEffect, FormEvent } from 'react';
+import { Send, ChevronRight, Play, Square } from 'lucide-react';
+import ModelCanvas from '../../hooks/useThreeModel';
+import Loading from '../../components/Loading';
 
 export default function AIChatBot() {
-  const [messages, setMessages] = useState(SAMPLE_MESSAGES);
+  const LIVE3D_MODEL_URL = '/runtime/eida.vrm';
+  
+  // Danh sách các file VRMA bạn đã chuẩn bị
+  const VRMA_MOTIONS = [
+    { label: 'Nghỉ ngơi', url: '/runtime/VRMA/Idle.vrma' },
+    { label: 'Suy nghĩ', url: '/runtime/VRMA/Thinking.vrma' },
+    { label: 'Vẫy tay', url: '/runtime/VRMA/Goodbye.vrma' },
+    { label: 'Thư giãn', url: '/runtime/VRMA/Relax.vrma' },
+    { label: 'Clapping', url: '/runtime/VRMA/Clapping.vrma' },
+  ];
+
+  const [messages, setMessages] = useState([{ from: 'ai' as const, text: 'Chào Đức Anh! Yuika đã sẵn sàng.' }]);
   const [input, setInput] = useState('');
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [lastGesture, setLastGesture] = useState('neutral_idle');
-  const [chatOpen, setChatOpen] = useState(true);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
-  const streamingAbortRef = useRef<AbortController | null>(null);
-
-  const {
-    containerRef: live2DContainerRef,
-    canvasRef: live2DCanvasRef,
-    isLoading: isLive2DLoading,
-    error: live2DError,
-    hasModel: hasLive2DModel,
-    reloadModel,
-    playMotion,
-  } = useLive2D({
-    // modelUrl: '/runtime/haru_greeter_t05.model3.json',
-    modelUrl: '/runtime/haru_greeter_t05.model3.json',
-    initialScale: 0.15,
-    hitMotion: 'f05',
-  });
-
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [selectedVrma, setSelectedVrma] = useState(VRMA_MOTIONS[0].url);
+  const modelRef = useRef<any>(null);
   const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+  // Tự động chạy Idle khi load xong
   useEffect(() => {
-    if (!scrollRef.current) return;
-    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
-
-  const sendToAI = async (nextMessages: Array<{ from: 'user' | 'ai'; text: string }>) => {
-    if (isStreaming) return;
-    setIsStreaming(true);
-
-    const token = localStorage.getItem('token');
-    const payload = {
-      model: 'paraphrase-multilingual-MiniLM-L12-v2',
-      messages: nextMessages.map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text })),
-    };
-
-    // placeholder AI reply entry
-    const aiIndex = nextMessages.length;
-    setMessages((prev) => [...prev, { from: 'ai', text: '' }]);
-
-    const controller = new AbortController();
-    streamingAbortRef.current = controller;
-
-    const applySseData = (rawData: string) => {
-      let content = rawData;
-      try {
-        const parsed = JSON.parse(rawData);
-        if (parsed?.gesture) {
-          setLastGesture(String(parsed.gesture));
-        }
-        if (parsed?.error) {
-          content = `Lỗi AI: ${String(parsed.error)}`;
-        } else if (typeof parsed?.content === 'string') {
-          content = parsed.content;
-        } else {
-          content = JSON.stringify(parsed);
-        }
-      } catch {
-        // Keep backward compatibility for plain text SSE data.
-      }
-
-      setMessages((prev) => {
-        const copy = [...prev];
-        copy[aiIndex] = { from: 'ai', text: (copy[aiIndex]?.text || '') + content };
-        return copy;
-      });
-    };
-
-    try {
-      const res = await fetch(`${API_BASE}/ai/chat/stream`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      // debug: log response status and content-type
-      console.debug('AI stream response', res.status, res.statusText, res.headers.get('content-type'));
-
-      if (!res.ok) {
-        // fallback to synchronous endpoint
-        const fallback = await fetch(`${API_BASE}/ai/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: JSON.stringify(payload),
-        });
-        if (!fallback.ok) {
-          const txt = await fallback.text();
-          throw new Error(txt || 'AI request failed');
-        }
-        const json = await fallback.json();
-        const reply = json?.content || json?.message?.content || JSON.stringify(json);
-        if (json?.gesture) {
-          setLastGesture(String(json.gesture));
-        }
-        setMessages((prev) => {
-          const copy = [...prev];
-          copy[aiIndex] = { from: 'ai', text: reply };
-          return copy;
-        });
-        return;
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) {
-        const json = await res.json();
-        const reply = json?.content || json?.message?.content || JSON.stringify(json);
-        if (json?.gesture) {
-          setLastGesture(String(json.gesture));
-        }
-        setMessages((prev) => {
-          const copy = [...prev];
-          copy[aiIndex] = { from: 'ai', text: reply };
-          return copy;
-        });
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-
-          // normalize CRLF to LF to handle servers that emit \r\n
-          buffer = buffer.replace(/\r\n/g, '\n');
-
-          let sepIndex = buffer.indexOf('\n\n');
-          while (sepIndex !== -1) {
-            const raw = buffer.slice(0, sepIndex);
-            buffer = buffer.slice(sepIndex + 2);
-            const lines = raw.split('\n');
-            for (const line of lines) {
-              const l = line.trim();
-              if (l.startsWith('data:')) {
-                const content = l.slice(5).trim();
-                // debug: log parsed SSE data chunk
-                console.debug('sse data chunk', content);
-                applySseData(content);
-              }
-            }
-            sepIndex = buffer.indexOf('\n\n');
-          }
-        }
-        if (done) break;
-      }
-
-      if (buffer.trim()) {
-        buffer = buffer.replace(/\r\n/g, '\n');
-        const lines = buffer.split('\n');
-        for (const line of lines) {
-          const l = line.trim();
-          if (l.startsWith('data:')) {
-            const content = l.slice(5).trim();
-            console.debug('sse leftover', content);
-            applySseData(content);
-          }
-        }
-      }
-    } catch (err: unknown) {
-      console.error('AI stream error', err);
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setMessages((prev) => {
-          const copy = [...prev];
-          copy[aiIndex] = { from: 'ai', text: (copy[aiIndex]?.text || '') + ' [stream aborted]' };
-          return copy;
-        });
-      } else {
-        const errMessage = err instanceof Error ? err.message : String(err);
-        setMessages((prev) => {
-          const copy = [...prev];
-          copy[aiIndex] = { from: 'ai', text: 'Có lỗi khi gọi AI: ' + errMessage };
-          return copy;
-        });
-      }
-    } finally {
-      streamingAbortRef.current = null;
-      setIsStreaming(false);
+    if (isLoaded) {
+      // start idle loop
+      modelRef.current?.playMotion(VRMA_MOTIONS[0].url, { loop: true });
     }
+  }, [isLoaded]);
+
+  // Mapping backend gesture keys to VRMA / local motion identifiers
+  const GESTURE_MAP: Record<string, string> = {
+    neutral_idle: '/runtime/VRMA/Idle.vrma',
+    greet_wave: '/runtime/VRMA/Goodbye.vrma',
+    bow_polite: '/runtime/VRMA/Idle.vrma',
+    explain_point: '/runtime/VRMA/LookAround.vrma',
+    think_tilt: '/runtime/VRMA/Thinking.vrma',
+    suggest_action: '/runtime/VRMA/Relax.vrma',
+    show_project: '/runtime/VRMA/LookAround.vrma',
+    list_items: '/runtime/VRMA/LookAround.vrma',
+    highlight_materials: '/runtime/VRMA/Blush.vrma',
+    navigate_next: '/runtime/VRMA/Jump.vrma',
+    navigate_prev: '/runtime/VRMA/Jump.vrma',
+    open_link_hand: '/runtime/VRMA/Goodbye.vrma',
+    celebrate_success: '/runtime/VRMA/Clapping.vrma',
+    empathy_soft: '/runtime/VRMA/Sad.vrma',
+    ask_clarify: '/runtime/VRMA/Thinking.vrma',
+    error_shrug: '/runtime/VRMA/Surprised.vrma',
   };
 
-  const handleSend = async (e?: FormEvent) => {
-    e?.preventDefault();
+  const handleSend = async (e: FormEvent) => {
+    e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed) return;
+
     const userMsg = { from: 'user' as const, text: trimmed };
     const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     setInput('');
-    void sendToAI(nextMessages);
+
+    // Start thinking motion while waiting (loop)
+    const thinkingMotion = GESTURE_MAP['think_tilt'] || '/runtime/VRMA/Thinking.vrma';
+    try {
+      setMessages((prev) => [...prev, { from: 'ai', text: '' }] );
+      // play thinking (loop)
+      modelRef.current?.playMotion(thinkingMotion, { loop: true });
+
+      const res = await fetch(`${API_BASE}/ai/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: nextMessages.map((m) => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text })),
+        }),
+      });
+
+      const json = await res.json();
+      const reply = json?.text ?? json?.content ?? 'AI không có phản hồi.';
+
+      // stop thinking before running backend motion
+      modelRef.current?.stopAll();
+
+      if (json?.gesture) {
+        const mapped = GESTURE_MAP[json.gesture] || GESTURE_MAP['neutral_idle'];
+        // play backend motion once (await duration) then return to idle
+        try {
+          const dur = await modelRef.current?.playMotion(mapped, { loop: false });
+          // after the motion, go back to idle
+          await modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+        } catch (e) {
+          // fallback to idle if error
+          modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+        }
+      } else {
+        // no gesture -> ensure idle
+        modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+      }
+
+      // update the AI message text
+      setMessages((prev) => {
+        const copy = [...prev];
+        const aiIndex = copy.findIndex((m) => m.from === 'ai' && m.text === '');
+        if (aiIndex >= 0) copy[aiIndex] = { from: 'ai', text: reply };
+        return copy;
+      });
+    } catch (err: any) {
+      modelRef.current?.stopAll();
+      modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+      setMessages((prev) => {
+        const copy = [...prev];
+        const aiIndex = copy.findIndex((m) => m.from === 'ai' && m.text === '');
+        if (aiIndex >= 0) copy[aiIndex] = { from: 'ai', text: `Lỗi kết nối: ${err?.message || err}` };
+        return copy;
+      });
+    }
   };
 
   return (
-    <main className="min-h-screen px-6 pb-24 pt-24 md:ml-64 md:px-8 md:pb-12 relative">
-      <div className="mx-auto max-w-7xl">
-        <div className="flex items-center justify-center">
-          <div className="relative w-full">
-            <div className="flex items-start justify-center gap-6">
-              {/* Center placeholder area for the avatar / canvas */}
-              <div className="flex-1 flex justify-center">
-                <div className="w-[62%] max-w-4xl">
-                  <div className="rounded-3xl overflow-hidden shadow-2xl bg-white/10 border border-white/5">
-                    <div ref={live2DContainerRef} className="relative w-full h-[78vh] bg-gradient-to-b from-zinc-900 to-zinc-800 overflow-hidden">
-                      <canvas ref={live2DCanvasRef} className="h-full w-full" />
-                      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/30 to-transparent" />
+    <main className="min-h-screen px-6 pb-24 pt-24 md:ml-64 bg-zinc-950 text-white">
+      <div className="mx-auto max-w-7xl flex gap-6 h-[80vh]">
+        
+        {/* VIEWPORT MODEL */}
+        <div className="flex-1 relative bg-zinc-900 rounded-3xl border border-white/10 overflow-hidden shadow-2xl">
+          <ModelCanvas
+            ref={modelRef}
+            modelUrl={LIVE3D_MODEL_URL}
+            onLoaded={() => setIsLoaded(true)}
+            className="w-full h-full"
+          />
 
-                      {isLive2DLoading && (
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/70">Đang tải Live2D...</div>
-                      )}
+          {!isLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-50">
+              <Loading text="Đang khởi tạo nhân vật..." />
+            </div>
+          )}
 
-                      {live2DError && (
-                        <div className="absolute left-3 right-3 top-3 rounded-lg bg-red-500/80 px-3 py-2 text-xs text-white">Lỗi Live2D: {live2DError}</div>
-                      )}
-
-                      {!isLive2DLoading && !live2DError && !hasLive2DModel && (
-                        <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-white/70">Chưa có model Live2D</div>
-                      )}
-                    </div>
-
-                    <div className="p-3 bg-black/20 flex flex-wrap gap-2">
-                      <button
-                        onClick={() => {
-                          playMotion('Idle');
-                        }}
-                        disabled={!hasLive2DModel}
-                        className="rounded-lg bg-white/10 px-3 py-1 text-sm text-white disabled:opacity-50"
-                      >
-                        Play Idle
-                      </button>
-                      <button
-                        onClick={() => {
-                          void reloadModel();
-                        }}
-                        disabled={isLive2DLoading}
-                        className="rounded-lg bg-white/10 px-3 py-1 text-sm text-white disabled:opacity-50"
-                      >
-                        Reload Model
-                      </button>
-
-                      <div className="flex items-center gap-2">
-                        <select disabled value="" className="rounded-md bg-white/5 px-2 py-1 text-xs text-white outline-none">
-                          <option value="">Chọn motion...</option>
-                        </select>
-                        <button className="rounded-md bg-white/10 px-3 py-1 text-sm text-white">Play</button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right chat panel */}
-              <div className={`transition-transform ${chatOpen ? 'translate-x-0' : 'translate-x-36'}`}>
-                <div className="w-96">
-                  <div className="relative rounded-2xl bg-black/70 backdrop-blur-sm text-white shadow-2xl border border-white/10 flex flex-col h-[78vh] overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                      <div>
-                        <div className="text-sm font-semibold">Cuộc trò chuyện</div>
-                        <div
-                          className={`text-xs flex items-center gap-2 ${
-                            live2DError ? 'text-red-300' : hasLive2DModel ? 'text-green-300' : 'text-yellow-300'
-                          }`}
-                        >
-                          <span
-                            className={`inline-block h-2 w-2 rounded-full ${
-                              live2DError ? 'bg-red-400' : hasLive2DModel ? 'bg-green-400' : 'bg-yellow-300'
-                            }`}
-                          />
-                          {live2DError ? 'Lỗi model' : isLive2DLoading ? 'Đang tải model' : hasLive2DModel ? 'Sẵn sàng' : 'Chưa tải model'}
-                        </div>
-                        <div className="text-[11px] text-cyan-300">Gesture: {lastGesture}</div>
-                      </div>
-                      <div className="flex items-center gap-2 text-slate-300">
-                        <button
-                          title="Làm mới"
-                          onClick={() => {
-                            void reloadModel();
-                          }}
-                          className="p-1 rounded-md hover:bg-white/5"
-                        >
-                          <RefreshCw size={16} />
-                        </button>
-                        <button title="Thu gọn" onClick={() => setChatOpen((s) => !s)} className="p-1 rounded-md hover:bg-white/5">
-                          <ChevronDown size={16} />
-                        </button>
-                      </div>
-                    </div>
-
-                    <div ref={scrollRef} className="px-3 py-4 overflow-y-auto flex-1 space-y-4">
-                      {messages.length === 0 && <div className="text-sm text-white/70">Nhấn ENTER để chat với Ami</div>}
-
-                      {messages.map((m, i) => (
-                        <div key={i} className={`flex items-start gap-3 ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          {m.from === 'ai' && <img src={`https://i.pravatar.cc/40?u=ami`} alt="Ami" className="h-9 w-9 rounded-full object-cover" />}
-                          <div className={`${m.from === 'user' ? 'bg-green-700 text-white self-end' : 'bg-white/6 text-white'} max-w-[78%] rounded-xl px-3 py-2 text-sm`}>
-                            {m.text}
-                          </div>
-                          {m.from === 'user' && <img src={`https://i.pravatar.cc/40?u=user`} alt="Bạn" className="h-8 w-8 rounded-full object-cover" />}
-                        </div>
-                      ))}
-                    </div>
-
-                    <form onSubmit={(e) => handleSend(e)} className="px-3 py-3 border-t border-white/10">
-                      <div className="flex items-center gap-2">
-                        <input
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              void handleSend();
-                            }
-                          }}
-                          placeholder="Nhập tin nhắn..."
-                          className="flex-1 rounded-xl bg-white/5 placeholder-white/60 text-white px-3 py-2 text-sm outline-none"
-                        />
-                        <button type="button" title="Mic" className="rounded-xl p-2 text-white/90 hover:bg-white/5">
-                          <Mic size={16} />
-                        </button>
-                        <button type="submit" title="Gửi" disabled={isStreaming || input.trim() === ''} className="rounded-xl bg-green-600 px-3 py-2 text-sm font-bold text-white disabled:opacity-60">
-                          <Send size={16} />
-                        </button>
-                      </div>
-                      <div className="mt-2 flex items-center justify-between text-xs text-white/60">
-                        <div>*Lưu ý: Nội dung có thể được gửi tới API backend.</div>
-                        <div>{input.length}/1000</div>
-                      </div>
-                    </form>
-                  </div>
-                </div>
-
-                <button onClick={() => setChatOpen((s) => !s)} className="mt-3 flex items-center justify-center rounded-full bg-black/60 p-2 text-white shadow-md" aria-label="Toggle chat">
-                  <ChevronRight size={18} className={`transition-transform ${chatOpen ? 'rotate-180' : ''}`} />
+          {/* DROPDOWN ĐIỀU KHIỂN MOTION */}
+          <div className="absolute top-4 left-4 z-40 bg-black/70 backdrop-blur-md p-4 rounded-2xl border border-white/10 shadow-xl w-64">
+            <h4 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3">Chuyển động (VRMA)</h4>
+            <div className="space-y-3">
+              <select
+                value={selectedVrma}
+                onChange={(e) => setSelectedVrma(e.target.value)}
+                className="w-full bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-xs outline-none focus:ring-1 ring-green-500"
+              >
+                {VRMA_MOTIONS.map((m) => (
+                  <option key={m.url} value={m.url}>{m.label}</option>
+                ))}
+              </select>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => modelRef.current?.playMotion(selectedVrma)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-xs font-bold transition-all"
+                >
+                  <Play size={14} /> CHẠY
+                </button>
+                <button
+                  onClick={() => modelRef.current?.stopAll()}
+                  className="px-3 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg transition-all"
+                >
+                  <Square size={14} />
                 </button>
               </div>
             </div>
           </div>
         </div>
+
+        {/* CHAT BOX (Giữ nguyên cấu trúc của bạn) */}
+        <div className="w-96 flex flex-col bg-black/40 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-sm">
+          <div className="p-4 border-b border-white/10 flex justify-between items-center">
+            <span className="text-sm font-bold">Trò chuyện với Yuika</span>
+            <div className={`w-2 h-2 rounded-full ${isLoaded ? 'bg-green-500 animate-pulse' : 'bg-yellow-500'}`} />
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {messages.map((m, i) => (
+              <div key={i} className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
+                <div className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${m.from === 'user' ? 'bg-green-600' : 'bg-white/10'}`}>
+                  {m.text}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <form onSubmit={handleSend} className="p-4 bg-white/5 border-t border-white/10 flex gap-2">
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Nhập nội dung..."
+              className="flex-1 bg-transparent outline-none text-sm"
+            />
+            <button type="submit" className="p-2 bg-green-600 rounded-xl hover:scale-105 transition-transform">
+              <Send size={18} />
+            </button>
+          </form>
+        </div>
+
       </div>
     </main>
   );

@@ -1,0 +1,80 @@
+[
+  {
+    "id": "resp_001_greet",
+    "text": "Chào bạn! Mình có thể giúp gì hôm nay?",
+    "details": "Mình có thể tìm dự án, gợi ý theo vật liệu, hoặc hướng dẫn từng bước.",
+    "gesture": "greet_wave",
+    "navigation": ["Gợi ý dự án theo vật liệu", "Tìm dự án theo tên"]
+  },
+  {
+    "id": "resp_002_ask_clarify",
+    "text": "Bạn có thể cho mình biết cụ thể vật liệu bạn có không? (ví dụ: chai nhựa, giấy, keo)",
+    "gesture": "ask_clarify"
+  },
+  {
+    "id": "resp_003_show_project_pocket",
+    "text": "Đây là một dự án phù hợp: Pocket Watch Leather Case.",
+    "details": "Hộp da nhỏ cho người mới, mất khoảng 1 giờ.",
+    "gesture": "show_project",
+    "project": {
+      "id": "projects_craft_0001",
+      "title": "Pocket Watch Leather Case",
+      "short_description": "Hộp da nhỏ tự làm để đựng pocket watch.",
+      "materials": ["leather", "thread", "needle"],
+      "steps_summary": ["Cắt da theo mẫu", "Khâu viền", "Hoàn thiện và đánh bóng"],
+      "source_url": "https://instructables.com/id/Pocket-Watch-Leather-Case/"
+    },
+    "navigation": ["Mở liên kết", "Gợi ý dự án tương tự"]
+  },
+  {
+    "id": "resp_004_list_materials_scanner",
+    "text": "Danh sách vật liệu chính cho máy quét phim bằng bìa:",
+    "details": "Bạn chỉ cần bìa cứng, băng dính, dao, và nền màu đen để tối ưu kết quả.",
+    "gesture": "list_items",
+    "project": {
+      "id": "projects_craft_0002",
+      "title": "DIY Cardboard Smartphone Film Scanner",
+      "materials": ["cardboard", "black_paper", "tape", "craft_knife"],
+      "source_url": "https://instructables.com/id/DIY-Cardboard-Smartphone-Film-Scanner-v2/"
+    }
+  },
+  {
+    "id": "resp_005_material_suggestions",
+    "text": "Dưới đây là một vài dự án phù hợp với vật liệu bạn cung cấp (chai nhựa, giấy):",
+    "gesture": "list_items",
+    "suggested_articles": [
+      {"id": "projects_craft_0002", "title": "DIY Cardboard Smartphone Film Scanner", "link": "https://instructables.com/id/DIY-Cardboard-Smartphone-Film-Scanner-v2/", "match_score": 0.82},
+      {"id": "projects_craft_0001", "title": "Pocket Watch Leather Case", "link": "https://instructables.com/id/Pocket-Watch-Leather-Case/", "match_score": 0.45}
+    ]
+  },
+  {
+    "id": "resp_006_navigation_next",
+    "text": "Mình sẽ chuyển sang mục tiếp theo.",
+    "gesture": "navigate_next",
+    "navigation": ["Tiếp theo"]
+  },
+  {
+    "id": "resp_007_open_link",
+    "text": "Mình đã chuẩn bị liên kết, bạn có muốn mở trang hướng dẫn không?",
+    "gesture": "open_link_hand",
+    "project": {"id": "projects_craft_0003", "title": "3D Printed Rope Maker", "source_url": "https://instructables.com/id/3D-Printed-Rope-Maker-and-Use-It/"},
+    "navigation": ["Mở liên kết"]
+  },
+  {
+    "id": "resp_008_success",
+    "text": "Tuyệt vời — bạn đã hoàn thành bước đó!", 
+    "gesture": "celebrate_success"
+  },
+  {
+    "id": "resp_009_fallback",
+    "text": "Xin lỗi, mình chưa có đủ thông tin trong kiến thức hiện tại. Bạn có thể mô tả chi tiết hơn (ví dụ: vật liệu, mục tiêu) được không?",
+    "gesture": "error_shrug"
+  },
+  {
+    "id": "resp_010_step_detail",
+    "text": "Bước 2 của dự án 3D Printed Rope Maker: Lắp các phần và kiểm tra trục xoay.",
+    "details": "Kiểm tra rằng trục quay trơn, phần kẹp sợi cố định chắc, và điều chỉnh lỗ để sợi không bị kẹt.",
+    "gesture": "explain_point",
+    "project": {"id": "projects_craft_0003", "title": "3D Printed Rope Maker"}
+  }
+]

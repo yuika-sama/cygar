@@ -1,4 +1,5 @@
 import { Box } from 'lucide-react';
+import Loading from '../components/Loading';
 
 export default function ARCraftingPage() {
   return (
@@ -13,7 +14,7 @@ export default function ARCraftingPage() {
       <div className="flex-1 bg-slate-900 rounded-3xl relative overflow-hidden flex items-center justify-center">
         <div className="text-white text-center">
           <Box size={64} className="mx-auto mb-4 animate-bounce text-green-400" />
-          <p className="text-slate-400">Đang tải môi trường 3D...</p>
+          <Loading text="Đang tải môi trường 3D..." className="text-slate-400" />
           <p className="text-xs mt-2 text-slate-500">(Dùng Three.js để render mô hình tái chế tại đây)</p>
         </div>
         <div className="absolute bottom-6 left-6 right-6 flex justify-center space-x-4">
