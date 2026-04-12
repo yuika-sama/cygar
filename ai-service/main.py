@@ -114,7 +114,7 @@ class Message(BaseModel):
     content: str
 
 class ChatRequest(BaseModel):
-    model: str = os.getenv("SENTENCE_TRANSFORMER_MODEL", "all-MiniLM-L6-v2")
+    model: str = os.getenv("SENTENCE_TRANSFORMER_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
     messages: List[Message]
     options: Optional[dict] = None
     # backward-compatible key

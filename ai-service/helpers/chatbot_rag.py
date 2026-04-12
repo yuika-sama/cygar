@@ -11,6 +11,10 @@ import numpy as np
 
 from helpers.models import get_sentence_transformer
 
+# Optional prebuilt recommender (sklearn TF-IDF) support
+# Use Path(__file__) here so the constant does not depend on BASE_DIR
+PREBUILT_RECOMMENDER_DIR = Path(__file__).resolve().parent.parent / "utils" / "models"
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_KNOWLEDGE_DIR = BASE_DIR / "helpers" / "chatbot_knowledge"
@@ -95,12 +99,14 @@ class ChatRAGService:
         dataset_paths: Optional[List[Path]] = None,
         preprompt_file: Path = DEFAULT_PREPROMPT_FILE,
         gesture_file: Path = DEFAULT_GESTURE_FILE,
+        prebuilt_model_dir: Path = PREBUILT_RECOMMENDER_DIR,
     ) -> None:
         self.knowledge_dir = knowledge_dir
         self.project_docs_dir = project_docs_dir
         self.dataset_paths = dataset_paths or DEFAULT_DATASET_PATHS
         self.preprompt_file = preprompt_file
         self.gesture_file = gesture_file
+        self.prebuilt_model_dir = prebuilt_model_dir
 
         self._policy: Dict[str, str] = dict(DEFAULT_POLICY)
         self._preprompt_text: str = ""
@@ -109,6 +115,7 @@ class ChatRAGService:
         self._gestures: List[GestureRule] = []
         self._gesture_embeddings: Optional[np.ndarray] = None
         self._is_loaded = False
+        self._recommender = None
 
     def refresh(self) -> None:
         self._policy = dict(DEFAULT_POLICY)
@@ -140,6 +147,31 @@ class ChatRAGService:
                 "gesture": self._policy.get("fallback_gesture", "neutral_idle"),
                 "sources": [],
             }
+        # Quick canned answers for common recycling questions (e.g. PET)
+        lc = normalized_message.lower()
+        if "tái chế" in lc and "pet" in lc:
+            assistant_name = self._policy.get("assistant_name", "Yuika")
+            short = "Tái chế PET: Thu gom, rửa, nghiền, và tái chế cơ học."
+            details = "\n".join(
+                [
+                    f"{assistant_name} (AI assistant của CyGar)",
+                    "Dưới đây là tổng quan các bước cơ bản để tái chế nhựa PET:",
+                    "- Thu gom và phân loại: gom riêng PET (chai, bao bì), loại bỏ rác khác.",
+                    "- Rửa sạch: loại bỏ nhãn, nắp, và tạp chất để tránh nhiễm bẩn.",
+                    "- Nghiền/ép: nghiền thành mảnh hoặc nén để giảm thể tích.",
+                    "- Tái chế cơ học: làm sạch sâu, tan chảy và đùn thành hạt tái chế (recycled pellets).",
+                    "- Sử dụng lại: hạt tái chế được dùng cho sản phẩm mới hoặc sợi polyester.",
+                    "Lưu ý: Quy trình chi tiết và yêu cầu kỹ thuật có thể khác nhau giữa cơ sở. Nếu bạn cần hướng dẫn cụ thể hoặc nguồn tham khảo, mình có thể tìm giúp.",
+                ]
+            )
+            return {
+                "role": "assistant",
+                "content": short,
+                "text": short,
+                "details": details,
+                "gesture": self._select_gesture(normalized_message, details),
+                "sources": [],
+            }
 
         query_text = self._build_query_text(normalized_message, messages or [])
         query_embedding = self._encode_text(query_text)
@@ -164,34 +196,67 @@ class ChatRAGService:
         gesture = self._select_gesture(normalized_message, content)
         sources = self._compact_sources(ranked_chunks)
 
-        # If the user asked for recommendations, try to extract dataset projects as suggested_articles
+        # If the user asked for recommendations, produce `suggested_articles`.
         message_lc = normalized_message.lower()
         is_recommend_query = any(keyword in message_lc for keyword in RECOMMEND_KEYWORDS)
         suggested_articles: List[Dict[str, Any]] = []
         if is_recommend_query:
-            for idx in top_indices:
+            # Prefer the prebuilt TF-IDF recommender when available
+            if self._recommender is not None:
+                # Try to detect material keyword that matches recommender mapping
+                material = None
                 try:
-                    chunk = self._chunks[int(idx)]
-                    txt = chunk.text
-                    # Try to parse dataset project row_text created in _load_dataset_chunks
-                    # Format: "Dataset project: {title}. ... Reference link: {link or 'n/a'}."
-                    title_match = re.search(r"Dataset project:\s*([^\.]+)\.", txt)
-                    link_match = re.search(r"Reference link:\s*([^\.]+)\.", txt)
-                    title = title_match.group(1).strip() if title_match else None
-                    link = link_match.group(1).strip() if link_match else None
-                    if title:
-                        score = float(similarities[int(idx)]) if similarities is not None else 0.0
-                        suggested_articles.append({
-                            "title": title,
-                            "link": link if link and link != 'n/a' else None,
-                            "snippet": self._trim(txt, 240),
-                            "match_score": round(float(score), 4),
-                        })
+                    for k in getattr(self._recommender, 'material_mapping', {}).keys():
+                        if k.lower() in message_lc:
+                            material = k
+                            break
                 except Exception:
-                    continue
+                    material = None
+
+                # heuristics for common forms
+                if not material:
+                    if 'pet' in message_lc or 'chai nhựa' in message_lc or 'chai nhua' in message_lc:
+                        material = 'PET'
+
+                if material:
+                    try:
+                        recs = self._recommender.recommend(material, top_n=top_k)
+                        for r in recs:
+                            suggested_articles.append({
+                                'title': r.get('title'),
+                                'link': r.get('link'),
+                                'snippet': r.get('title') or '',
+                                'match_score': None,
+                            })
+                    except Exception:
+                        suggested_articles = []
+
+            # Fallback: extract dataset rows from ranked chunks (existing behavior)
+            if not suggested_articles:
+                for idx in top_indices:
+                    try:
+                        chunk = self._chunks[int(idx)]
+                        txt = chunk.text
+                        # Try to parse dataset project row_text created in _load_dataset_chunks
+                        # Format: "Dataset project: {title}. ... Reference link: {link or 'n/a'}."
+                        title_match = re.search(r"Dataset project:\s*([^\.]+)\.", txt)
+                        link_match = re.search(r"Reference link:\s*([^\.]+)\.", txt)
+                        title = title_match.group(1).strip() if title_match else None
+                        link = link_match.group(1).strip() if link_match else None
+                        if title:
+                            score = float(similarities[int(idx)]) if similarities is not None else 0.0
+                            suggested_articles.append({
+                                "title": title,
+                                "link": link if link and link != 'n/a' else None,
+                                "snippet": self._trim(txt, 240),
+                                "match_score": round(float(score), 4),
+                            })
+                    except Exception:
+                        continue
 
         reply: Dict[str, Any] = {
             "role": "assistant",
+            "content": short_text,
             "text": short_text,
             "details": content,
             "gesture": gesture,
@@ -212,8 +277,39 @@ class ChatRAGService:
         self._policy = {**DEFAULT_POLICY, **parsed_policy}
 
         chunks: List[KnowledgeChunk] = []
+        # Load markdown files from the main knowledge folder (exclude preprompt and gesture file)
         chunks.extend(self._load_markdown_chunks(self.knowledge_dir, exclude_names={self.preprompt_file.name, self.gesture_file.name}))
+
+        # If a prebuilt TF-IDF recommender (.pkl) exists, load it and skip loading the many
+        # `projects/` markdown files to save startup time and memory.
+        prebuilt_ok = False
+        try:
+            vectorizer_file = self.prebuilt_model_dir / "vectorizer.pkl"
+            matrix_file = self.prebuilt_model_dir / "tfidf_matrix.pkl"
+            data_file = self.prebuilt_model_dir / "processed_data.pkl"
+            if vectorizer_file.exists() and matrix_file.exists() and data_file.exists():
+                # lazy import to avoid hard dependency at module import time
+                try:
+                    from utils.train import OptimizedRecyclingRecommender
+
+                    recommender = OptimizedRecyclingRecommender(model_dir=str(self.prebuilt_model_dir))
+                    # this will load the saved vectorizer/matrix if present
+                    recommender.train_or_load_model(file_paths=None, force_retrain=False)
+                    self._recommender = recommender
+                    prebuilt_ok = True
+                except Exception:
+                    prebuilt_ok = False
+        except Exception:
+            prebuilt_ok = False
+
+        # Also include project docs that may live under a `projects/` subfolder inside the knowledge dir
+        # Only load them when no prebuilt model is available.
+        projects_subdir = self.knowledge_dir / "projects"
+        if not prebuilt_ok and projects_subdir.exists() and projects_subdir.is_dir():
+            chunks.extend(self._load_markdown_chunks(projects_subdir))
+        # Load docs from the project_docs_dir (e.g., BASE_DIR/docs)
         chunks.extend(self._load_markdown_chunks(self.project_docs_dir))
+        # Load dataset-derived chunks (CSV rows)
         chunks.extend(self._load_dataset_chunks())
 
         if not chunks:
