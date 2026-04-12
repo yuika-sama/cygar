@@ -137,42 +137,23 @@ class ChatRAGService:
         }
 
     def answer(self, user_message: str, messages: Optional[List[Dict[str, Any]]] = None, top_k: int = 4) -> Dict[str, Any]:
+        """
+        Xử lý câu hỏi của người dùng bằng cơ chế RAG (Retrieval-Augmented Generation).
+        Hàm này tìm kiếm trong kho tri thức Markdown và Dataset CSV để trả về ngữ cảnh phù hợp nhất.
+        """
         self._ensure_loaded()
 
         normalized_message = (user_message or "").strip()
         if not normalized_message:
             return {
                 "role": "assistant",
-                "content": "Vui long nhap cau hoi de minh ho tro.",
+                "content": "Vui lòng nhập câu hỏi để mình hỗ trợ.",
                 "gesture": self._policy.get("fallback_gesture", "neutral_idle"),
                 "sources": [],
             }
-        # Quick canned answers for common recycling questions (e.g. PET)
-        lc = normalized_message.lower()
-        if "tái chế" in lc and "pet" in lc:
-            assistant_name = self._policy.get("assistant_name", "Yuika")
-            short = "Tái chế PET: Thu gom, rửa, nghiền, và tái chế cơ học."
-            details = "\n".join(
-                [
-                    f"{assistant_name} (AI assistant của CyGar)",
-                    "Dưới đây là tổng quan các bước cơ bản để tái chế nhựa PET:",
-                    "- Thu gom và phân loại: gom riêng PET (chai, bao bì), loại bỏ rác khác.",
-                    "- Rửa sạch: loại bỏ nhãn, nắp, và tạp chất để tránh nhiễm bẩn.",
-                    "- Nghiền/ép: nghiền thành mảnh hoặc nén để giảm thể tích.",
-                    "- Tái chế cơ học: làm sạch sâu, tan chảy và đùn thành hạt tái chế (recycled pellets).",
-                    "- Sử dụng lại: hạt tái chế được dùng cho sản phẩm mới hoặc sợi polyester.",
-                    "Lưu ý: Quy trình chi tiết và yêu cầu kỹ thuật có thể khác nhau giữa cơ sở. Nếu bạn cần hướng dẫn cụ thể hoặc nguồn tham khảo, mình có thể tìm giúp.",
-                ]
-            )
-            return {
-                "role": "assistant",
-                "content": short,
-                "text": short,
-                "details": details,
-                "gesture": self._select_gesture(normalized_message, details),
-                "sources": [],
-            }
 
+        # 1. XÂY DỰNG QUERY VÀ EMBEDDING
+        # Kết hợp lịch sử trò chuyện để hiểu ngữ cảnh tốt hơn
         query_text = self._build_query_text(normalized_message, messages or [])
         query_embedding = self._encode_text(query_text)
 
@@ -185,86 +166,77 @@ class ChatRAGService:
                 "sources": [],
             }
 
+        # 2. TÌM KIẾM ĐỘ TƯƠNG ĐỒNG (COSINE SIMILARITY)
         similarities = np.dot(self._chunk_embeddings, query_embedding)
-        top_indices = np.argsort(-similarities)[: max(1, top_k)]
-        ranked_chunks = [self._chunks[int(idx)] for idx in top_indices]
+        
+        # Lấy top_k kết quả có điểm cao nhất
+        raw_top_indices = np.argsort(-similarities)[:max(1, top_k)]
+        
+        # Ngưỡng (Threshold) thực tế: SentenceTransformer thường cần > 0.25 để có nghĩa
+        valid_indices = [int(idx) for idx in raw_top_indices if similarities[idx] > 0.25]
 
-        # build human-friendly content
-        content = self._compose_content(normalized_message, ranked_chunks)
-        # short text for UI (first line)
-        short_text = (content.splitlines()[0] if content else "")
-        gesture = self._select_gesture(normalized_message, content)
-        sources = self._compact_sources(ranked_chunks)
+        # 3. XỬ LÝ KHI KHÔNG TÌM THẤY THÔNG TIN
+        if not valid_indices:
+            fallback_msg = self._policy.get("fallback_message", "Mình chưa tìm thấy thông tin phù hợp trong kho tri thức.")
+            return {
+                "role": "assistant",
+                "content": fallback_msg,
+                "text": fallback_msg,
+                "details": fallback_msg,
+                "gesture": "error_shrug", # Cử chỉ báo lỗi/không biết
+                "sources": [],
+            }
 
-        # If the user asked for recommendations, produce `suggested_articles`.
-        message_lc = normalized_message.lower()
-        is_recommend_query = any(keyword in message_lc for keyword in RECOMMEND_KEYWORDS)
+        # 4. TRÍCH XUẤT VÀ TỔNG HỢP NỘI DUNG (CONTEXT)
+        selected_chunks = [self._chunks[i] for i in valid_indices]
+        
+        # Tạo phần chi tiết (details) cho frontend
+        parts: List[str] = ["Dựa trên tài liệu hệ thống:"]
+        for chunk in selected_chunks:
+            # Gắn thêm nguồn để người dùng dễ kiểm chứng
+            parts.append(f"- {chunk.text} (Nguồn: {chunk.source})")
+        
+        parts.append(f"\n---\n{self._policy.get('assistant_name', 'Yuika')} - Trợ lý AI CyGar")
+        full_details = "\n".join(parts)
+
+        # 5. TẠO CÂU TRẢ LỜI NGẮN (SHORT TEXT)
+        # Lấy câu đầu tiên của đoạn khớp nhất để làm câu trả lời tóm tắt
+        top_text = selected_chunks[0].text
+        short_text = top_text.split('.')[0] + "." if top_text else "Đây là thông tin mình tìm được."
+
+        # 6. XỬ LÝ GỢI Ý DỰ ÁN (RECOMMENDATION)
         suggested_articles: List[Dict[str, Any]] = []
-        if is_recommend_query:
-            # Prefer the prebuilt TF-IDF recommender when available
-            if self._recommender is not None:
-                # Try to detect material keyword that matches recommender mapping
-                material = None
-                try:
-                    for k in getattr(self._recommender, 'material_mapping', {}).keys():
-                        if k.lower() in message_lc:
-                            material = k
-                            break
-                except Exception:
-                    material = None
+        message_lc = normalized_message.lower()
+        
+        # Nếu câu hỏi có từ khóa yêu cầu gợi ý
+        if any(kw in message_lc for kw in RECOMMEND_KEYWORDS):
+            for idx in valid_indices:
+                chunk = self._chunks[idx]
+                # Kiểm tra nếu chunk này đến từ dataset CSV
+                if "Dataset project:" in chunk.text:
+                    # Regex để bóc tách Title và Link từ chuỗi đã format trong _load_dataset_chunks
+                    title_match = re.search(r"Dataset project:\s*([^\.]+)\.", chunk.text)
+                    link_match = re.search(r"Reference link:\s*([^\.]+)\.", chunk.text)
+                    
+                    if title_match:
+                        suggested_articles.append({
+                            "title": title_match.group(1).strip(),
+                            "link": link_match.group(1).strip() if link_match else None,
+                            "match_score": round(float(similarities[idx]), 4)
+                        })
 
-                # heuristics for common forms
-                if not material:
-                    if 'pet' in message_lc or 'chai nhựa' in message_lc or 'chai nhua' in message_lc:
-                        material = 'PET'
-
-                if material:
-                    try:
-                        recs = self._recommender.recommend(material, top_n=top_k)
-                        for r in recs:
-                            suggested_articles.append({
-                                'title': r.get('title'),
-                                'link': r.get('link'),
-                                'snippet': r.get('title') or '',
-                                'match_score': None,
-                            })
-                    except Exception:
-                        suggested_articles = []
-
-            # Fallback: extract dataset rows from ranked chunks (existing behavior)
-            if not suggested_articles:
-                for idx in top_indices:
-                    try:
-                        chunk = self._chunks[int(idx)]
-                        txt = chunk.text
-                        # Try to parse dataset project row_text created in _load_dataset_chunks
-                        # Format: "Dataset project: {title}. ... Reference link: {link or 'n/a'}."
-                        title_match = re.search(r"Dataset project:\s*([^\.]+)\.", txt)
-                        link_match = re.search(r"Reference link:\s*([^\.]+)\.", txt)
-                        title = title_match.group(1).strip() if title_match else None
-                        link = link_match.group(1).strip() if link_match else None
-                        if title:
-                            score = float(similarities[int(idx)]) if similarities is not None else 0.0
-                            suggested_articles.append({
-                                "title": title,
-                                "link": link if link and link != 'n/a' else None,
-                                "snippet": self._trim(txt, 240),
-                                "match_score": round(float(score), 4),
-                            })
-                    except Exception:
-                        continue
-
+        # 7. TRẢ VỀ RESPONSE PAYLOAD
         reply: Dict[str, Any] = {
             "role": "assistant",
-            "content": short_text,
-            "text": short_text,
-            "details": content,
-            "gesture": gesture,
-            "sources": sources,
+            "content": short_text,   # Text hiển thị chính
+            "text": short_text,      # Backward compatibility
+            "details": full_details, # Thông tin chi tiết kèm nguồn
+            "gesture": self._select_gesture(normalized_message, full_details),
+            "sources": self._compact_sources(selected_chunks),
         }
 
         if suggested_articles:
-            reply["suggested_articles"] = suggested_articles
+            reply["suggested_articles"] = suggested_articles[:5] # Lấy tối đa 5 gợi ý
 
         return reply
 
@@ -358,19 +330,15 @@ class ChatRAGService:
         message_lc = user_message.lower()
         is_recommend_query = any(keyword in message_lc for keyword in RECOMMEND_KEYWORDS)
 
-        if is_recommend_query:
-            lead = "Duoi day la cac goi y phu hop tu tai lieu, dataset va nguon tham khao."
-        else:
-            lead = "Duoi day la thong tin phu hop nhat tu tri thuc du an."
-
-        lines = [
-            f"{assistant_name} ({assistant_role} cua {app_name})",
-            lead,
-        ]
+        # Put the human-friendly lead first so the frontend short text is meaningful.
+        lines = []
 
         for chunk in selected:
             lines.append(f"- {self._trim(chunk.text, 260)}")
 
+        lines.append("")
+        lines.append(f"{assistant_name} ({assistant_role} cua {app_name})")
+        lines.append("")
         lines.append("Neu can, ban co the mo rong cau hoi de minh tra loi sat hon theo ngu canh website hien tai.")
         return "\n".join(lines)
 

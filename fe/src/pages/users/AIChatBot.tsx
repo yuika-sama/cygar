@@ -1,7 +1,9 @@
-import { useRef, useState, useEffect, FormEvent } from 'react';
-import { Send, ChevronRight, Play, Square } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
+import type { FormEvent } from 'react';
+import { Send, Play, Square } from 'lucide-react';
 import ModelCanvas from '../../hooks/useThreeModel';
 import Loading from '../../components/Loading';
+import ChatMessage from '../../components/ChatMessage';
 
 export default function AIChatBot() {
   const LIVE3D_MODEL_URL = '/runtime/eida.vrm';
@@ -15,7 +17,9 @@ export default function AIChatBot() {
     { label: 'Clapping', url: '/runtime/VRMA/Clapping.vrma' },
   ];
 
-  const [messages, setMessages] = useState([{ from: 'ai' as const, text: 'Chào Đức Anh! Yuika đã sẵn sàng.' }]);
+  const [messages, setMessages] = useState<Array<{ from: 'ai' | 'user'; text: string; details?: string; sources?: string[] }>>([
+    { from: 'ai', text: 'Chào Đức Anh! Yuika đã sẵn sàng.' },
+  ]);
   const [input, setInput] = useState('');
   const [isLoaded, setIsLoaded] = useState(false);
   const [selectedVrma, setSelectedVrma] = useState(VRMA_MOTIONS[0].url);
@@ -76,32 +80,57 @@ export default function AIChatBot() {
       });
 
       const json = await res.json();
-      const reply = json?.text ?? json?.content ?? 'AI không có phản hồi.';
+      const shortText = (json?.content ?? json?.text ?? (json?.details ? json.details.split('\n')[0] : '')) || 'AI không có phản hồi.';
+      const longDetails = json?.details ?? json?.text ?? json?.content ?? '';
 
       // stop thinking before running backend motion
-      modelRef.current?.stopAll();
+      try {
+        modelRef.current?.stopAll();
+      } catch (err) {
+        console.warn('stopAll failed', err);
+      }
 
       if (json?.gesture) {
         const mapped = GESTURE_MAP[json.gesture] || GESTURE_MAP['neutral_idle'];
         // play backend motion once (await duration) then return to idle
         try {
+          // small delay to let stopAll take effect
+          await new Promise((r) => setTimeout(r, 60));
+          console.debug('Playing backend gesture', json.gesture, '->', mapped);
           const dur = await modelRef.current?.playMotion(mapped, { loop: false });
-          // after the motion, go back to idle
-          await modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+          // If duration is falsy, fallback to a short wait then idle
+          if (!dur || dur <= 0) {
+            console.warn('playMotion returned no duration, falling back to idle');
+            await new Promise((r) => setTimeout(r, 700));
+            await modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+          } else {
+            // after the motion finishes, go back to idle
+            await modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+          }
         } catch (e) {
+          console.error('Error playing backend gesture', e);
           // fallback to idle if error
-          modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+          try {
+            await modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+          } catch (e2) {
+            console.warn('Failed to play idle fallback', e2);
+          }
         }
       } else {
         // no gesture -> ensure idle
-        modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+        try {
+          await modelRef.current?.playMotion(GESTURE_MAP['neutral_idle'], { loop: true });
+        } catch (e) {
+          console.warn('Failed to ensure idle', e);
+        }
       }
 
-      // update the AI message text
+      // update the AI message (store both short text and full details + sources)
       setMessages((prev) => {
         const copy = [...prev];
         const aiIndex = copy.findIndex((m) => m.from === 'ai' && m.text === '');
-        if (aiIndex >= 0) copy[aiIndex] = { from: 'ai', text: reply };
+        if (aiIndex >= 0)
+          copy[aiIndex] = { from: 'ai', text: shortText, details: longDetails, sources: json?.sources || [] };
         return copy;
       });
     } catch (err: any) {
@@ -177,7 +206,11 @@ export default function AIChatBot() {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.from === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[85%] px-4 py-2 rounded-2xl text-sm ${m.from === 'user' ? 'bg-green-600' : 'bg-white/10'}`}>
-                  {m.text}
+                  {m.from === 'user' ? (
+                    <div>{m.text}</div>
+                  ) : (
+                    <ChatMessage message={m as any} />
+                  )}
                 </div>
               </div>
             ))}

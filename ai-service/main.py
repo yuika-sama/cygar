@@ -45,6 +45,7 @@ CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
 CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
 CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
 CLOUDINARY_FOLDER = os.getenv("CLOUDINARY_FOLDER", "cygar")
+LLM_SERVICE_URL = os.getenv("LLM_SERVICE_URL", "http://localhost:8080")
 
 app = FastAPI(title="Firebase FastAPI Backend")
 
@@ -780,9 +781,21 @@ def get_chat_messages(session_id: str, user_token: dict = Depends(verify_token))
         items.append({"role": d.get("role"), "content": d.get("content"), "created_at": created})
     return {"items": items}
 
+
+def _legacy_local_rag_answer(user_message: str, messages: Optional[List[Dict[str, Any]]] = None, top_k: int = 4) -> Dict[str, Any]:
+    """Legacy local RAG answer function (kept for reference, not used by routes).
+
+    This wraps the existing local RAG service (`get_chat_rag_service().answer`) but
+    is intentionally not called by the active endpoints. It preserves the previous
+    behavior should you wish to revert or compare outputs.
+    """
+    rag_service = get_chat_rag_service()
+    return rag_service.answer(user_message=user_message, messages=(messages or []), top_k=top_k)
+
 @app.post("/ai/chat", tags=["Chat"])
 async def chat_sync(request: ChatRequest):
     """Sync chat with local RAG (markdown docs + dataset + gesture mapping)."""
+    # Legacy local RAG exists in `_legacy_local_rag_answer` but is not used here.
     try:
         logger = logging.getLogger("uvicorn.error")
         messages_dict = [msg.model_dump() for msg in request.messages]
@@ -791,12 +804,35 @@ async def chat_sync(request: ChatRequest):
         if not last_user:
             raise HTTPException(status_code=400, detail="Khong tim thay tin nhan cua user")
 
-        rag_service = get_chat_rag_service()
-        reply_payload = rag_service.answer(user_message=last_user, messages=messages_dict[:-1], top_k=4)
-        logger.debug("chat_sync gesture=%s sources=%s", reply_payload.get("gesture"), reply_payload.get("sources"))
+        # Proxy to external llm-service (nodejs)
+        llm_url = LLM_SERVICE_URL.rstrip('/')
+        payload = {"model": request.model, "messages": messages_dict, "options": request.options or request.option or {}}
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            resp = await client.post(f"{llm_url}/chat", json=payload)
+
+        if resp.status_code != 200:
+            logger.error("llm-service returned %s: %s", resp.status_code, resp.text)
+            raise HTTPException(status_code=502, detail=f"LLM service error: {resp.text}")
+
+        data = resp.json()
+        # Map node response to expected payload
+        response_text = data.get("response") or data.get("content") or data.get("text") or (data.get("details") and str(data.get("details")).split('\n')[0]) or ""
+        gesture = data.get("gesture") or data.get("gesture_name") or None
+        details = data.get("details") or data.get("raw") or response_text
+        sources = data.get("sources") or []
+
+        reply_payload = {
+            "role": "assistant",
+            "content": response_text,
+            "text": response_text,
+            "details": details,
+            "gesture": gesture,
+            "sources": sources,
+        }
+        logger.debug("chat_sync proxied gesture=%s sources=%s", gesture, sources)
         return reply_payload
     except Exception as e:
-        logging.getLogger("uvicorn.error").exception("Error in chat_sync: %s", e)
+        logging.getLogger("uvicorn.error").exception("Error in chat_sync proxy: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/ai/chat/stream", tags=["Chat"])
@@ -806,21 +842,35 @@ async def chat_stream(request: ChatRequest):
         logger = logging.getLogger("uvicorn.error")
         try:
             messages_dict = [msg.model_dump() for msg in request.messages]
-
             last_user = _get_last_user_message(messages_dict)
             if not last_user:
                 yield f"data: {json.dumps({'error': 'No user message provided'})}\n\n"
                 return
 
-            rag_service = get_chat_rag_service()
-            reply_payload = rag_service.answer(user_message=last_user, messages=messages_dict[:-1], top_k=4)
-            yield f"data: {json.dumps(reply_payload, ensure_ascii=False)}\n\n"
+            # Proxy to external llm-service
+            llm_url = LLM_SERVICE_URL.rstrip('/')
+            payload = {"model": request.model, "messages": messages_dict, "options": request.options or request.option or {}}
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                resp = await client.post(f"{llm_url}/chat", json=payload)
+
+            if resp.status_code != 200:
+                yield f"data: {json.dumps({'error': f'LLM service error: {resp.text}'})}\n\n"
+                return
+
+            data = resp.json()
+            yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
         except Exception as e:
             logger.exception("Error: %s", e)
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(generate_chunks(), media_type="text/event-stream")
 
+# Optional: include Putter.ai router if present
+try:
+    from putter_service import router as putter_router
+    app.include_router(putter_router, prefix="/api/putter", tags=["Putter"])
+except Exception as e:
+    logging.getLogger("uvicorn.error").warning("Putter router not included: %s", e)
 
 # --- CHẠY SERVER ---
 if __name__ == "__main__":

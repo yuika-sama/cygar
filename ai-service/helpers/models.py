@@ -61,7 +61,7 @@ def get_sentence_transformer(model_name: Optional[str] = None) -> SentenceTransf
     if _sentence_transformer is not None:
         return _sentence_transformer
 
-    chosen = model_name or os.getenv("SENTENCE_TRANSFORMER_MODEL") or "all-MiniLM-L6-v2"
+    chosen = model_name or os.getenv("SENTENCE_TRANSFORMER_MODEL") or "multi-qa-mpnet-base-dot-v1"
     _sentence_transformer = SentenceTransformer(chosen)
     return _sentence_transformer
 
