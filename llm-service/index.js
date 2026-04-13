@@ -15,47 +15,68 @@ const PUTTER_BASE = (process.env.PUTTER_API_BASE_URL || 'https://api.putter.ai')
 const PUTTER_KEY = process.env.PUTTER_API_KEY || '';
 const PUTTER_PATH = process.env.PUTTER_API_GENERATE_PATH || '/v1/generate';
 const PUTTER_TIMEOUT = parseInt(process.env.PUTTER_API_TIMEOUT || '30', 10) * 1000;
+const ENABLE_PUTER_SDK = String(process.env.ENABLE_PUTER_SDK || '').toLowerCase() === 'true';
+
+// Prevent process crash from third-party unhandled async errors.
+process.on('unhandledRejection', (reason) => {
+  const rendered = reason && reason.stack ? reason.stack : JSON.stringify(reason);
+  console.error('unhandledRejection captured:', rendered);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('uncaughtException captured:', error && error.stack ? error.stack : error);
+});
 
 // Try to initialize local puter client; fall back to HTTP API.
 const PUTER_TOKEN = process.env.PUTER_AUTH_TOKEN || process.env.PUTTER_API_KEY || '';
 let puter = null;
 let hasPuter = false;
-try {
-  const initModule = require('@heyputer/puter.js/src/init.cjs');
-  const init = initModule && (initModule.init || initModule);
-  puter = init(PUTER_TOKEN || undefined);
-  hasPuter = !!puter;
-  console.log('llm-service: initialized @heyputer/puter.js via init');
-} catch (e) {
+if (ENABLE_PUTER_SDK) {
   try {
-    const puterModule = require('@heyputer/puter.js');
-    const candidate = puterModule && (puterModule.default || puterModule);
-    if (candidate && typeof candidate.init === 'function') {
-      puter = candidate.init(PUTER_TOKEN || undefined);
-    } else if (candidate && candidate.puter) {
-      puter = candidate.puter;
-    } else {
-      puter = candidate;
-    }
+    const initModule = require('@heyputer/puter.js/src/init.cjs');
+    const init = initModule && (initModule.init || initModule);
+    puter = init(PUTER_TOKEN || undefined);
     hasPuter = !!puter;
-    if (hasPuter) console.log('llm-service: initialized @heyputer/puter.js via fallback');
-  } catch (e2) {
-    console.log('llm-service: @heyputer/puter.js not available, HTTP fallback will be used');
-    puter = null;
-    hasPuter = false;
+    console.log('llm-service: initialized @heyputer/puter.js via init');
+  } catch (e) {
+    try {
+      const puterModule = require('@heyputer/puter.js');
+      const candidate = puterModule && (puterModule.default || puterModule);
+      if (candidate && typeof candidate.init === 'function') {
+        puter = candidate.init(PUTER_TOKEN || undefined);
+      } else if (candidate && candidate.puter) {
+        puter = candidate.puter;
+      } else {
+        puter = candidate;
+      }
+      hasPuter = !!puter;
+      if (hasPuter) console.log('llm-service: initialized @heyputer/puter.js via fallback');
+    } catch (e2) {
+      console.log('llm-service: @heyputer/puter.js not available, HTTP fallback will be used');
+      puter = null;
+      hasPuter = false;
+    }
   }
+} else {
+  console.log('llm-service: SDK disabled (ENABLE_PUTER_SDK!=true), using HTTP fallback');
 }
 
 async function callPutter(prompt, opts = {}) {
   // Primary path: use puter.ai.chat when available
   if (hasPuter && puter && puter.ai && typeof puter.ai.chat === 'function') {
     try {
-      const aiResp = await puter.ai.chat(prompt);
-      const text = aiResp?.message?.content ?? aiResp?.output ?? aiResp?.text ?? (Array.isArray(aiResp?.choices) ? aiResp.choices.map(c => c.text || c.content || c.message?.content).filter(Boolean).join('\n') : undefined) ?? JSON.stringify(aiResp);
+      // Đảm bảo prompt không null nếu gọi chat(prompt)
+      const input = prompt || (opts.messages && opts.messages.length > 0 ? opts.messages[opts.messages.length - 1].content : "");
+      
+      const aiResp = await puter.ai.chat(input); 
+
+      // Kiểm tra kỹ cấu trúc response của Puter
+      const text = aiResp?.message?.content ?? aiResp?.output ?? aiResp?.text ?? "No response content";
       return { status: 'ok', raw: aiResp, text };
     } catch (e) {
-      console.error('puter.ai.chat error:', e && e.message ? e.message : e);
-      return { status: 'error', status_code: 500, raw: e && e.message ? e.message : String(e) };
+      // In toàn bộ object e để debug
+      console.error('puter.ai.chat error object:', JSON.stringify(e, null, 2));
+      return { status: 'error', status_code: 500, raw: e };
     }
   }
 
@@ -159,6 +180,13 @@ app.post('/generate', async (req, res) => {
   }
 });
 
-app.get('/health', (req, res) => res.json({ status: 'ok', putter_configured: !!PUTTER_KEY }));
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    putter_configured: !!PUTTER_KEY,
+    sdk_enabled: ENABLE_PUTER_SDK,
+    sdk_active: hasPuter
+  });
+});
 
 app.listen(PORT, () => console.log(`llm-service listening on port ${PORT}`));
